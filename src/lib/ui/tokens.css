@@ -1,0 +1,219 @@
+@theme {
+  --font-sans:
+    'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+  --font-display: 'IM Fell English', 'Iowan Old Style', 'Palatino', Georgia, serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+    monospace;
+
+  --color-surface-50: #fbf8f1;
+  --color-surface-100: #f4ecd8;
+  --color-surface-200: #e7d9b6;
+  --color-surface-300: #c9b483;
+  --color-surface-400: #8f7a4f;
+  --color-surface-500: #5a4a30;
+  --color-surface-600: #3d3220;
+  --color-surface-700: #2a2316;
+  --color-surface-800: #1a160e;
+  --color-surface-900: #0e0c07;
+
+  --color-ink-50: #fbf8f1;
+  --color-ink-100: #ede4ce;
+  --color-ink-300: #a89875;
+  --color-ink-500: #6b5d3c;
+  --color-ink-700: #2f2818;
+  --color-ink-900: #14110a;
+
+  --color-brass-50: #faf3e0;
+  --color-brass-100: #f0dfa8;
+  --color-brass-300: #d4b76a;
+  --color-brass-500: #b08d57;
+  --color-brass-600: #8c6d3f;
+  --color-brass-700: #6b5430;
+  --color-brass-900: #3a2c17;
+
+  --color-sea-50: #e6f0ec;
+  --color-sea-300: #6aa68d;
+  --color-sea-500: #2e8b57;
+  --color-sea-700: #1d5a39;
+
+  --color-crimson-50: #fbe8e8;
+  --color-crimson-300: #d76b6b;
+  --color-crimson-500: #b22222;
+  --color-crimson-700: #7a1414;
+
+  --color-amber-50: #fdf3e0;
+  --color-amber-300: #f1b261;
+  --color-amber-500: #d97706;
+  --color-amber-700: #92400e;
+
+  --color-tide-50: #e8eef5;
+  --color-tide-300: #6989b0;
+  --color-tide-500: #1e3a8a;
+  --color-tide-700: #142658;
+
+  --radius-xs: 0.125rem;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+
+  --shadow-sail: 0 1px 2px 0 rgba(20, 17, 10, 0.06), 0 2px 6px -1px rgba(20, 17, 10, 0.08);
+  --shadow-deck:
+    0 4px 6px -1px rgba(20, 17, 10, 0.1), 0 2px 4px -2px rgba(20, 17, 10, 0.08);
+  --shadow-hold:
+    0 10px 15px -3px rgba(20, 17, 10, 0.12), 0 4px 6px -4px rgba(20, 17, 10, 0.1);
+}
+
+@layer base {
+  html,
+  body {
+    background-color: var(--color-surface-50);
+    color: var(--color-ink-900);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    min-height: 100vh;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  .display {
+    font-family: var(--font-display);
+    color: var(--color-ink-900);
+    letter-spacing: 0.01em;
+  }
+
+  ::selection {
+    background-color: var(--color-brass-300);
+    color: var(--color-ink-900);
+  }
+
+  *:focus-visible {
+    outline: 2px solid var(--color-brass-500);
+    outline-offset: 2px;
+    border-radius: var(--radius-xs);
+  }
+
+  .surface-card {
+    background-color: var(--color-surface-50);
+    border: 1px solid var(--color-surface-200);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sail);
+  }
+
+  .surface-rail {
+    background-color: var(--color-surface-100);
+    border-right: 1px solid var(--color-surface-200);
+  }
+
+  .surface-rail-right {
+    background-color: var(--color-surface-100);
+    border-left: 1px solid var(--color-surface-200);
+  }
+}
+
+/*
+ * Honor the user's OS-level "reduce motion" preference. We collapse
+ * animations and transitions to a vanishingly small duration rather
+ * than removing them outright so any UI that depends on a final
+ * transition state (e.g. chevron rotations on disclosures) still
+ * snaps to the right end-state instead of leaving a stale visual.
+ *
+ * Applied globally so every transition-* and animate-* utility from
+ * Tailwind, plus any handcrafted @keyframes, gets the same treatment
+ * without per-component plumbing.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/*
+ * Dark mode (v1.0).
+ *
+ * We chose filter-inversion rather than a hand-tuned dark palette: the
+ * v0.x-v0.9 surface ships dozens of bespoke color decisions across
+ * tokens, ship cards, dialogs, scene chips, conditions, etc. — recoloring
+ * each by hand for two themes would have been a milestone in itself. The
+ * trade-off is that filter inversion turns black ink to white, but it
+ * also rotates every chromatic accent. We add `hue-rotate(180deg)` to
+ * pull blues back to blues / reds back to reds; the residual shift is
+ * small and consistent across the surface.
+ *
+ * Counter-invert: any node tagged `data-counter-invert="true"` (and
+ * media elements that need their original color: <img>, <video>, art
+ * <svg> with fill, custom-painted <canvas>) gets the inverse filter so
+ * portraits and flag art appear true-to-life.
+ *
+ * The filter is applied to <body> rather than <html> so the document
+ * background also flips; if it were on <html> the area outside the body
+ * would still draw the light surface color. The 180deg hue-rotate runs
+ * inside the same composition pass so a single counter-invert filter
+ * cleanly cancels both transforms in one go.
+ */
+html[data-color-scheme='dark'] body {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+html[data-color-scheme='dark'] img,
+html[data-color-scheme='dark'] video,
+html[data-color-scheme='dark'] canvas,
+html[data-color-scheme='dark'] [data-counter-invert='true'] {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+/*
+ * Density mode (v1.0).
+ *
+ * Rather than thread a `density` prop through every card and stepper, we
+ * route the choice through a single `data-density` attribute on <html>
+ * and let surfaces opt in via the `[data-density="compact"]` selector
+ * below. The default ("comfortable") inherits the existing v0.x spacing
+ * so users who never open the dialog see no change.
+ *
+ * The compact rules below were tuned empirically on the existing ship
+ * detail surface — they tighten vertical rhythm by ~25% without breaking
+ * the overall visual hierarchy.
+ */
+html[data-density='compact'] .surface-card {
+  padding: 0.75rem; /* down from 1rem */
+}
+
+html[data-density='compact'] section[aria-label] > header,
+html[data-density='compact'] section[aria-labelledby] > header {
+  margin-bottom: 0.5rem;
+}
+
+html[data-density='compact'] input[type='number'].stepper-input,
+html[data-density='compact'] input[type='text'].stepper-input {
+  height: 1.75rem; /* down from 2rem */
+}
+
+html[data-density='compact'] .officer-card {
+  padding: 0.5rem;
+}
+
+/*
+ * Tailwind v4's @custom-variant lets us write dark-aware utilities
+ * without importing a config — surfaces that need a dark-only override
+ * (e.g. shadows that wash out under inversion) can use `dark:` once
+ * defined here. Today the filter approach handles 99% of color, so
+ * this is reserved for future targeted overrides.
+ */
+@custom-variant dark (html[data-color-scheme='dark'] &);
+@custom-variant compact (html[data-density='compact'] &);

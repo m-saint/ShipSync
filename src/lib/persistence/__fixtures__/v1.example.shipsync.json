@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-04-25T20:00:00.000Z",
+  "lastSavedBy": "fixture",
+  "ship": {
+    "id": "ship-fixture-black-spear",
+    "name": "The Black Spear",
+    "size": "small",
+    "type": "Sloop",
+    "mobility": "high",
+    "speed": { "knots": 3, "squares": 0 },
+    "hp": { "current": 12, "max": 12 },
+    "explosionDC": 14,
+    "weapons": {
+      "bow": 0,
+      "port": 4,
+      "starboard": 4,
+      "stern": 0,
+      "heavyEligible": false
+    },
+    "supplies": { "grub": 8, "grog": 4, "gear": 6 },
+    "resources": {
+      "fuel": 0,
+      "ammoByType": { "standard": 30, "chainshot": 4, "hullbusters": 2 }
+    },
+    "crew": { "current": 24, "max": 24, "skeleton": 12 },
+    "officers": {
+      "captain": { "name": "Roya the Quick", "rank": 3, "status": "active", "portraitImageId": null, "notes": "" },
+      "firstMate": { "name": "Old Pete", "rank": 2, "status": "active", "portraitImageId": null, "notes": "" },
+      "quartermaster": { "name": null, "rank": 1, "status": "active", "portraitImageId": null, "notes": "" },
+      "navigator": { "name": null, "rank": 1, "status": "active", "portraitImageId": null, "notes": "" },
+      "helmsperson": { "name": null, "rank": 1, "status": "active", "portraitImageId": null, "notes": "" },
+      "boatswain": { "name": null, "rank": 1, "status": "active", "portraitImageId": null, "notes": "" },
+      "cook": { "name": null, "rank": 1, "status": "active", "portraitImageId": null, "notes": "" },
+      "masterGunner": { "name": null, "rank": 1, "status": "active", "portraitImageId": null, "notes": "" },
+      "shipwright": { "name": null, "rank": 1, "status": "active", "portraitImageId": null, "notes": "" },
+      "surgeon": { "name": null, "rank": 1, "status": "active", "portraitImageId": null, "notes": "" }
+    },
+    "mettle": { "current": 9, "notes": "" },
+    "flags": {
+      "flown": [
+        {
+          "id": "the-black-spear",
+          "name": "The Black Spear",
+          "isFalse": false,
+          "isPirate": true,
+          "isFaction": false,
+          "artImageId": null,
+          "reputation": { "good": 0, "evil": 1, "lawful": 0, "chaotic": 2 }
+        }
+      ],
+      "known": [],
+      "flyingId": "the-black-spear"
+    },
+    "sceneFlags": {
+      "inIrons": false,
+      "hasWeatherGage": false,
+      "adjacentToShipIds": [],
+      "facing": null,
+      "speedZero": true
+    },
+    "fires": 0,
+    "boardedBy": null,
+    "portraitImageId": null,
+    "playerCharacter": {
+      "characterName": "Roya the Quick",
+      "traits": "Smuggler-turned-captain. Trusts her crew, suspects the navy, owes a favor to a sea witch.",
+      "portraitImageId": null
+    },
+    "sessionHistory": [],
+    "conditions": []
+  },
+  "images": {}
+}
