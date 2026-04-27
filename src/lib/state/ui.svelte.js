@@ -19,9 +19,14 @@
  */
 
 /**
- * v0.7 — Activity Log filter state. Lives in the transient UI store so it
+ * v0.7 — Captain's Log filter state. Lives in the transient UI store so it
  * resets on a fresh workspace load (filters are session ergonomics, not
  * something the user wants persisted between table sessions).
+ *
+ * v1.0.4 — the per-ship narrative journal was retired and the dashboard
+ * widget reclaimed the "Captain's Log" name. The category filter dropped
+ * its `'journal'` bucket along with the feature; legacy `'journal'` values
+ * read from a stale UI snapshot land on `'all'` via the setter below.
  *
  * - `shipFilter`: a player ship id, a scene ship id, the literal `'workspace'`
  *   for events not tied to any ship, or `null` for "all".
@@ -29,7 +34,7 @@
  *
  * @typedef {Object} ActivityLogFilter
  * @property {string|null} shipFilter
- * @property {'all'|'combat'|'crew'|'refit'|'journal'} categoryFilter
+ * @property {'all'|'combat'|'crew'|'refit'} categoryFilter
  */
 
 export const ui = $state({
@@ -123,8 +128,14 @@ export function setActivityLogShipFilter(shipId) {
   ui.activityLog.shipFilter = shipId ?? null
 }
 
-/** @param {'all'|'combat'|'crew'|'refit'|'journal'} category */
+/** @param {'all'|'combat'|'crew'|'refit'} category */
 export function setActivityLogCategoryFilter(category) {
+  // v1.0.4 dropped the `'journal'` bucket; coerce stale values to `'all'` so
+  // a leftover preference doesn't leave the user staring at an empty list.
+  if (category === /** @type {any} */ ('journal')) {
+    ui.activityLog.categoryFilter = 'all'
+    return
+  }
   ui.activityLog.categoryFilter = category
 }
 

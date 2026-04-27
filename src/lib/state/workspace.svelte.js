@@ -4,11 +4,22 @@
  * Architecture:
  *   - `workspace` is a Svelte 5 `$state` proxy mutated directly by mutator functions below.
  *   - Every mutator goes through `commit(action, mutate)`, which:
- *       1. Snapshots the workspace before/after via `$state.snapshot`,
- *       2. Pushes the snapshot pair onto an in-memory plain undo stack,
- *       3. Appends a lightweight log entry to the affected ship's session history.
+ *       1. Snapshots the workspace before via `$state.snapshot`,
+ *       2. Runs the user mutation,
+ *       3. Stamps `ship.lastModifiedAt` on the affected ship (when `action.shipId`
+ *          is set) so the dirty / "unsaved" indicator advances in lockstep,
+ *       4. Snapshots the workspace after via `$state.snapshot`,
+ *       5. Pushes the snapshot pair onto an in-memory plain undo stack.
  *   - Undo/redo replays workspace snapshots (RAM only; never persisted).
- *   - The on-disk per-ship action log lives in `ship.sessionHistory`.
+ *
+ * v1.0.4 retired the per-ship narrative `sessionHistory` (the old "Captain's
+ * Log" feature). The dashboard now hosts a single workspace-level feed that
+ * the UI calls "Captain's Log" — implemented under `lib/features/activityLog`
+ * and powered directly by the `recentActions(N)` selector below. Per-ship
+ * dirty tracking moved from `latestActionAtForShip(ship)` (which scanned
+ * `sessionHistory.actions[].timestamp`) to a single `lastModifiedAt` field
+ * stamped here in `commit()` and migrated forward by
+ * `migrateLegacySessionHistory()` on file/bundle/autosave load.
  *
  * Why are the undo/redo stacks plain arrays (not `$state`)?
  *   `$state(...)` deep-wraps everything inside in Svelte 5 proxies. Pushing a snapshot
@@ -22,7 +33,6 @@ import {
   collectImageIds,
   composeDamageSummary,
   composeRepairSummary,
-  composeShoreLeaveSummary,
   makeEmptyWorkspace,
   makeId,
   normalizeReputation,
@@ -42,6 +52,11 @@ import {
   STATION_LABELS,
 } from '../domain/rules.js'
 import { pushToast } from './ui.svelte.js'
+import {
+  migrateLegacyPlayerCharacter,
+  migrateLegacySessionHistory,
+  migrateLegacyWeaponInventory,
+} from '../persistence/loadFile.js'
 
 /**
  * Cap on how many distinct undo entries we retain. The cap is a memory
@@ -51,7 +66,7 @@ import { pushToast } from './ui.svelte.js'
  * play session (a typical 4-hour session lands well under 100 commits)
  * while keeping the worst-case footprint bounded; older entries get
  * pruned silently from the bottom of the stack and the count of
- * pruned actions is surfaced to the Activity Log as a soft boundary
+ * pruned actions is surfaced to the Captain's Log as a soft boundary
  * hint so the user sees why old actions can't be undone anymore.
  */
 const UNDO_LIMIT = 200
@@ -61,7 +76,7 @@ export const workspace = $state(makeEmptyWorkspace())
 
 /**
  * Each entry packs the workspace snapshots before/after the commit, the
- * LogAction surfaced to the Activity Log, and an optional `coalesceKey`
+ * LogAction surfaced to the Captain's Log, and an optional `coalesceKey`
  * used to merge sequential same-bucket commits (see `commit()` for details).
  *
  * @type {Array<{ before: any, after: any, action: import('../domain/types.js').LogAction, coalesceKey: string|null }>}
@@ -75,7 +90,7 @@ const redoStack = []
  * Reactive mirror of the (plain) undo/redo stacks. UIs that need to react to
  * undo/redo changes read these instead of the stacks themselves. `prunedCount`
  * tracks how many entries fell off the bottom because of UNDO_LIMIT — the
- * Activity Log uses it to render a tiny "older history pruned" boundary hint.
+ * Captain's Log uses it to render a tiny "older history pruned" boundary hint.
  */
 const stackInfo = $state({ undoLen: 0, redoLen: 0, prunedCount: 0, version: 0 })
 
@@ -96,7 +111,7 @@ export function redoableCount() {
 /**
  * How many actions have been pruned from the bottom of the undo stack
  * because the cap was hit. Resets when the workspace is cleared.
- * Exposed so the Activity Log can render a "history pruned" hint at
+ * Exposed so the Captain's Log can render a "history pruned" hint at
  * the oldest-entry boundary without leaking the raw stack to UI code.
  */
 export function prunedActionCount() {
@@ -105,7 +120,9 @@ export function prunedActionCount() {
 
 /**
  * Most recent N actions from any ship + workspace, newest-first.
- * Used by the Activity Log and the per-ship Captain's Log narrative.
+ * Used by the dashboard Captain's Log (v1.0.4: previously named "Activity
+ * Log"; renamed when the per-ship narrative was retired and the workspace
+ * feed reclaimed the title).
  * @param {number} [limit]
  */
 export function recentActions(limit = 50) {
@@ -131,20 +148,29 @@ function cloneSnapshot(snapshot) {
  * Wrap a mutation in a transactional commit so it's logged and undoable.
  *
  * `coalesceKey` is the per-round / per-bucket merge knob used by combat-resource
- * mutators (mettle, crew, fires). When the most recent undo entry shares the
- * same key, we treat the new commit as a continuation of the same bucket: the
- * existing entry's `after` snapshot is replaced with the latest, and the log
- * line's `summary` and `timestamp` are rewritten in place. The original `before`
- * is preserved so that a single undo unwinds the entire chain back to the state
- * before the first commit in the bucket.
+ * mutators (mettle, crew, fires) and a growing roster of stepper-driven field
+ * mutators (supplies, hp, speed, etc.). When the most recent undo entry shares
+ * the same key, we treat the new commit as a continuation of the same bucket:
+ * the existing entry's `after` snapshot is replaced with the latest, and the
+ * log line's `summary` and `timestamp` are rewritten in place. The original
+ * `before` is preserved so that a single undo unwinds the entire chain back to
+ * the state before the first commit in the bucket.
  *
  * Coalescing is broken by:
- *   - any commit with no `coalesceKey` (e.g. ship.rename, supplies.update)
+ *   - any commit with no `coalesceKey` (e.g. ship.rename, ship.boarding)
  *   - any commit whose `coalesceKey` differs from the last entry's
  *   - an `undo()` (which pops the entry and clears the chain anchor)
  *
  * Important: redo is still cleared on every commit (coalesced or not) — once
  * you've made a forward edit, the parallel timeline is gone.
+ *
+ * v1.0.4: when `action.shipId` is set, `commit()` also stamps
+ * `ship.lastModifiedAt` with the same timestamp the LogAction carries, so
+ * the per-ship dirty / "unsaved" indicator advances in lockstep with the
+ * action feed. The stamp lives on the ship object itself so it rides along
+ * in autosave snapshots and per-ship `.shipsync.json` exports — that way an
+ * autosaved-then-reloaded workspace still knows which ships have edits the
+ * captain hasn't yet written to disk.
  *
  * @param {{ kind: string, summary: string, shipId?: string|null, coalesceKey?: string|null }} action
  * @param {() => void} mutate
@@ -152,6 +178,16 @@ function cloneSnapshot(snapshot) {
 function commit(action, mutate) {
   const before = cloneSnapshot($state.snapshot(workspace))
   mutate()
+
+  // Stamp `lastModifiedAt` BEFORE snapshotting `after` so the timestamp is
+  // part of the undoable diff. A single shared `stamp` value keeps the
+  // ship's dirty marker, the LogAction.timestamp, and (on coalescing) the
+  // chain's most-recent-edit time perfectly in sync.
+  const stamp = nowIso()
+  if (action.shipId && workspace.ships[action.shipId]) {
+    workspace.ships[action.shipId].lastModifiedAt = stamp
+  }
+
   const after = cloneSnapshot($state.snapshot(workspace))
 
   const coalesceKey = action.coalesceKey ?? null
@@ -163,28 +199,13 @@ function commit(action, mutate) {
     // Merge into the existing entry: keep the original `before`, advance
     // `after`, rewrite the log line. We REPLACE the LogAction object rather
     // than mutating it in place — Svelte 5's keyed `{#each}` over the global
-    // Activity Log diffs by `action.id`, and reused DOM nodes don't re-read
-    // string properties when the bound object identity stays the same. A
-    // fresh reference forces text-content re-evaluation.
+    // log diffs by `action.id`, and reused DOM nodes don't re-read string
+    // properties when the bound object identity stays the same. A fresh
+    // reference forces text-content re-evaluation.
     const updatedAction = {
       ...lastEntry.action,
       summary: action.summary,
-      timestamp: nowIso(),
-    }
-    // Sync into the ship's open SessionEntry so the per-ship Captain's Log
-    // (read via `ship.sessionHistory`) also picks up the new identity.
-    if (updatedAction.shipId) {
-      const ship = workspace.ships[updatedAction.shipId]
-      if (ship) {
-        for (let s = ship.sessionHistory.length - 1; s >= 0; s--) {
-          const sess = ship.sessionHistory[s]
-          const idx = sess.actions.findIndex((a) => a.id === updatedAction.id)
-          if (idx >= 0) {
-            sess.actions[idx] = updatedAction
-            break
-          }
-        }
-      }
+      timestamp: stamp,
     }
     lastEntry.after = after
     lastEntry.action = updatedAction
@@ -196,7 +217,7 @@ function commit(action, mutate) {
   /** @type {import('../domain/types.js').LogAction} */
   const logAction = {
     id: makeId(),
-    timestamp: nowIso(),
+    timestamp: stamp,
     kind: action.kind,
     summary: action.summary,
     shipId: action.shipId ?? null,
@@ -211,38 +232,6 @@ function commit(action, mutate) {
   }
   redoStack.length = 0
   syncStackInfo()
-
-  if (action.shipId && workspace.ships[action.shipId]) {
-    appendShipLog(action.shipId, logAction)
-  }
-}
-
-/**
- * Append a log entry to the current open SessionEntry of the given ship.
- * If no session is open for the ship, start one implicitly.
- * @param {string} shipId
- * @param {import('../domain/types.js').LogAction} action
- */
-function appendShipLog(shipId, action) {
-  const ship = workspace.ships[shipId]
-  if (!ship) return
-  const last = ship.sessionHistory[ship.sessionHistory.length - 1]
-  if (!last || last.endedAt != null) {
-    ship.sessionHistory.push({
-      id: makeId(),
-      workspaceSessionId: workspace.workspaceSessionId,
-      startedAt: nowIso(),
-      endedAt: null,
-      title: 'Session',
-      narrative: '',
-      actions: [action],
-      sessionDate: '',
-      location: '',
-      encounterName: '',
-    })
-    return
-  }
-  ship.sessionHistory[ship.sessionHistory.length - 1].actions.push(action)
 }
 
 /**
@@ -314,7 +303,6 @@ function replaceWorkspaceWith(snapshot) {
   }
 
   workspace.focusedShipId = snapshot.focusedShipId ?? null
-  workspace.workspaceSessionId = snapshot.workspaceSessionId ?? null
 }
 
 // ---------- Mutators ----------
@@ -444,7 +432,7 @@ export function setShipOrder(newOrder) {
  *
  * No-op if the ship doesn't exist or is already at the head of the order.
  * The summary names both the moved ship and the one it now sails ahead of so
- * the Activity Log reads as a directed change rather than "Lassie moved" with
+ * the Captain's Log reads as a directed change rather than "Lassie moved" with
  * no anchor.
  *
  * @param {string} shipId
@@ -537,10 +525,9 @@ export function importShip(ship, imagesFromFile = {}, opts = {}) {
  *
  * The mutation is a single `commit()` so undo restores whatever was on
  * the dashboard before the bundle landed. We don't issue per-ship log
- * entries here — the bundle's `sessionHistory` for each ship is part
- * of the file payload and adding "imported via bundle" lines on top
- * would clutter the freshly-loaded history. The workspace-level
- * summary is enough breadcrumb to find the import in the Activity Log.
+ * lines here — adding "imported via bundle" lines on top of the
+ * freshly-loaded ships would just clutter the feed. The workspace-level
+ * summary is enough breadcrumb to find the import in the Captain's Log.
  *
  * @param {{
  *   shipOrder: string[],
@@ -577,7 +564,6 @@ export function loadBundleIntoWorkspace(bundle, opts = {}) {
         images: bundle.images,
         lastSavedAtByShipId,
         focusedShipId: bundle.shipOrder[0] ?? null,
-        workspaceSessionId: workspace.workspaceSessionId,
       })
     },
   )
@@ -602,7 +588,7 @@ export function clearWorkspace() {
 
 // ---------- Ship-edit mutators (v0.2) ----------
 // Each mutator below funnels through commit() so every edit is undoable and
-// surfaced in the Activity Log. Image-touching mutators prune any image that
+// surfaced in the Captain's Log. Image-touching mutators prune any image that
 // becomes unreferenced after the change so the workspace store stays lean.
 
 /**
@@ -822,8 +808,12 @@ export function setShipMobility(shipId, nextMobility) {
 }
 
 /**
- * Update either or both speed components in a single commit.
- * Pass `undefined` for any component you don't want to change.
+ * Update either or both speed components in a single commit. Successive
+ * edits to the *same* speed component (e.g. holding the knots stepper)
+ * coalesce into a single log entry "knots 4 → 9" instead of one entry per
+ * step. Touching the other component, or any unrelated field, breaks the
+ * chain.
+ *
  * @param {string} shipId
  * @param {{ knots?: number, squares?: number }} patch
  */
@@ -833,11 +823,31 @@ export function setShipSpeed(shipId, patch) {
   const nextSquares =
     patch.squares != null ? Math.max(0, Number(patch.squares) || 0) : ship.speed.squares
   if (nextKnots === ship.speed.knots && nextSquares === ship.speed.squares) return
+  // Single-component patches get a focused coalesce key; combined patches
+  // (e.g. someone wires both fields in one click) skip coalescing so the
+  // log doesn't try to merge two unrelated bumps.
+  let coalesceKey = null
+  if (patch.knots != null && patch.squares == null) {
+    coalesceKey = `ship.speed.knots|${shipId}`
+  } else if (patch.squares != null && patch.knots == null) {
+    coalesceKey = `ship.speed.squares|${shipId}`
+  }
+  const chainBefore = coalesceKey != null ? getCoalescedBefore(coalesceKey) : null
+  const fromKnots = chainBefore?.ships?.[shipId]?.speed?.knots ?? ship.speed.knots
+  const fromSquares = chainBefore?.ships?.[shipId]?.speed?.squares ?? ship.speed.squares
+  /** @type {string[]} */
+  const summaryParts = []
+  if (nextKnots !== fromKnots) summaryParts.push(`knots ${fromKnots} → ${nextKnots}`)
+  if (nextSquares !== fromSquares) summaryParts.push(`squares ${fromSquares} → ${nextSquares}`)
   commit(
     {
       kind: 'ship.profile',
-      summary: `Set speed to ${nextKnots} kt / ${nextSquares} sq on ${ship.name}.`,
+      summary:
+        summaryParts.length > 0
+          ? `Speed on ${ship.name}: ${summaryParts.join(', ')}.`
+          : `Set speed to ${nextKnots} kt / ${nextSquares} sq on ${ship.name}.`,
       shipId,
+      coalesceKey,
     },
     () => {
       ship.speed = { knots: nextKnots, squares: nextSquares }
@@ -846,7 +856,10 @@ export function setShipSpeed(shipId, patch) {
 }
 
 /**
- * Set HP max. If max drops below current, current is clamped.
+ * Set HP max. If max drops below current, current is clamped. Successive
+ * edits coalesce into a single "Hull max 18 → 24" line — see
+ * `combatResourceCoalesceKey` for the same trick used by combat resources.
+ *
  * @param {string} shipId
  * @param {number} hpMax
  */
@@ -854,13 +867,16 @@ export function setShipHpMax(shipId, hpMax) {
   const ship = getShipOrThrow(shipId)
   const next = Math.max(1, Math.floor(Number(hpMax) || 0))
   if (next === ship.hp.max) return
-  const previousMax = ship.hp.max
+  const coalesceKey = `ship.hp.max|${shipId}`
+  const chainBefore = getCoalescedBefore(coalesceKey)
+  const previousMax = chainBefore?.ships?.[shipId]?.hp?.max ?? ship.hp.max
   const clampedCurrent = Math.min(ship.hp.current, next)
   commit(
     {
       kind: 'ship.hp',
       summary: `Hull max ${previousMax} → ${next} on ${ship.name}.`,
       shipId,
+      coalesceKey,
     },
     () => {
       ship.hp = { current: clampedCurrent, max: next }
@@ -869,7 +885,9 @@ export function setShipHpMax(shipId, hpMax) {
 }
 
 /**
- * Set HP current. Clamped to [0, hp.max].
+ * Set HP current. Clamped to [0, hp.max]. Coalesces successive edits to
+ * the same field so a stepper burst reads as one undoable step.
+ *
  * @param {string} shipId
  * @param {number} hpCurrent
  */
@@ -877,12 +895,15 @@ export function setShipHpCurrent(shipId, hpCurrent) {
   const ship = getShipOrThrow(shipId)
   const next = Math.max(0, Math.min(ship.hp.max, Math.floor(Number(hpCurrent) || 0)))
   if (next === ship.hp.current) return
-  const previous = ship.hp.current
+  const coalesceKey = `ship.hp.current|${shipId}`
+  const chainBefore = getCoalescedBefore(coalesceKey)
+  const previous = chainBefore?.ships?.[shipId]?.hp?.current ?? ship.hp.current
   commit(
     {
       kind: 'ship.hp',
       summary: `Hull ${previous} → ${next} on ${ship.name}.`,
       shipId,
+      coalesceKey,
     },
     () => {
       ship.hp.current = next
@@ -891,6 +912,8 @@ export function setShipHpCurrent(shipId, hpCurrent) {
 }
 
 /**
+ * Set the ship's Explosion DC. Coalesces successive edits to one log line.
+ *
  * @param {string} shipId
  * @param {number} dc
  */
@@ -898,12 +921,15 @@ export function setShipExplosionDC(shipId, dc) {
   const ship = getShipOrThrow(shipId)
   const next = Math.max(1, Math.floor(Number(dc) || 0))
   if (next === ship.explosionDC) return
-  const previous = ship.explosionDC
+  const coalesceKey = `ship.explosionDC|${shipId}`
+  const chainBefore = getCoalescedBefore(coalesceKey)
+  const previous = chainBefore?.ships?.[shipId]?.explosionDC ?? ship.explosionDC
   commit(
     {
       kind: 'ship.profile',
       summary: `Explosion DC ${previous} → ${next} on ${ship.name}.`,
       shipId,
+      coalesceKey,
     },
     () => {
       ship.explosionDC = next
@@ -913,6 +939,10 @@ export function setShipExplosionDC(shipId, dc) {
 
 /**
  * Patch any subset of weapon slots and/or `heavyEligible` in a single commit.
+ * Single-side patches coalesce into one log line ("starboard 2 → 5") when
+ * the captain holds a slot stepper; combined patches and the heavy toggle
+ * skip coalescing because they're discrete decisions, not stepper bursts.
+ *
  * @param {string} shipId
  * @param {Partial<import('../domain/types.js').WeaponSlots>} patch
  */
@@ -920,7 +950,9 @@ export function setShipWeapons(shipId, patch) {
   const ship = getShipOrThrow(shipId)
   /** @type {Partial<import('../domain/types.js').WeaponSlots>} */
   const next = {}
-  for (const key of /** @type {const} */ (['bow', 'port', 'starboard', 'stern'])) {
+  /** @type {Array<'bow'|'port'|'starboard'|'stern'>} */
+  const sideKeys = ['bow', 'port', 'starboard', 'stern']
+  for (const key of sideKeys) {
     if (patch[key] != null) {
       const value = Math.max(0, Math.floor(Number(patch[key]) || 0))
       if (value !== ship.weapons[key]) next[key] = value
@@ -931,9 +963,29 @@ export function setShipWeapons(shipId, patch) {
   }
   if (Object.keys(next).length === 0) return
 
+  // Coalesce only when exactly one slot count changed and `heavyEligible`
+  // wasn't touched. The chain anchor's value becomes the "from" half of
+  // the summary so a 2→5 burst reads as a single hop.
+  let coalesceKey = null
+  let onlyChangedSide = null
+  if (next.heavyEligible == null) {
+    const changedSides = sideKeys.filter((k) => next[k] != null)
+    if (changedSides.length === 1) {
+      onlyChangedSide = changedSides[0]
+      coalesceKey = `ship.weapons.${onlyChangedSide}|${shipId}`
+    }
+  }
+  const chainBefore = coalesceKey != null ? getCoalescedBefore(coalesceKey) : null
+
   const summaryParts = []
-  for (const key of /** @type {const} */ (['bow', 'port', 'starboard', 'stern'])) {
-    if (next[key] != null) summaryParts.push(`${key} ${ship.weapons[key]} → ${next[key]}`)
+  for (const key of sideKeys) {
+    if (next[key] != null) {
+      const fromValue =
+        key === onlyChangedSide && chainBefore?.ships?.[shipId]?.weapons?.[key] != null
+          ? chainBefore.ships[shipId].weapons[key]
+          : ship.weapons[key]
+      summaryParts.push(`${key} ${fromValue} → ${next[key]}`)
+    }
   }
   if (next.heavyEligible != null) {
     summaryParts.push(next.heavyEligible ? 'heavy weapons eligible' : 'heavy weapons not eligible')
@@ -943,6 +995,7 @@ export function setShipWeapons(shipId, patch) {
       kind: 'ship.weapons',
       summary: `Weapons on ${ship.name}: ${summaryParts.join(', ')}.`,
       shipId,
+      coalesceKey,
     },
     () => {
       Object.assign(ship.weapons, next)
@@ -951,18 +1004,188 @@ export function setShipWeapons(shipId, patch) {
 }
 
 /**
- * Update one or more supply tracks (Grub / Grog / Gear) on a ship.
- * Coalesces a multi-track patch into a single commit so e.g. "took on grub
- * and gear after a port stop" reads as one log line.
+ * Cap a mount's slot count to a sane positive integer. Single-slot is the
+ * floor (a mount that "occupies zero slots" is incoherent); the upper bound
+ * is intentionally generous (16) — bigger than any rulebook example yet
+ * small enough to surface obvious typos without forcing arbitrary fleet-wide
+ * caps.
+ *
+ * @param {unknown} value
+ * @returns {number}
+ */
+function clampMountSlots(value) {
+  const numeric = Number.isFinite(value) ? Number(value) : 1
+  return Math.max(1, Math.min(16, Math.floor(numeric)))
+}
+
+/**
+ * Append a new weapon mount to a side's inventory. Returns the new mount's
+ * id so the caller (a row editor) can immediately focus the name input on
+ * the freshly-added row.
+ *
+ * Note: this does NOT touch `ship.weapons[side]` — slot capacity is the
+ * captain's declared cap (e.g. "this brig has 4 starboard slots") and stays
+ * independent of how many mounts are currently filling those slots. The UI
+ * surfaces an "X of Y slots filled" tally so it's visible whether the
+ * captain has overstuffed or under-equipped a side. (See ProfileSection.)
+ *
+ * @param {string} shipId
+ * @param {'bow'|'port'|'starboard'|'stern'} side
+ * @param {{ name?: string, slotsOccupied?: number }} [seed]
+ * @returns {string|null} id of the added mount, or null when no commit ran
+ */
+export function addShipWeaponMount(shipId, side, seed = {}) {
+  const ship = getShipOrThrow(shipId)
+  if (!ship.weaponInventory) ship.weaponInventory = { bow: [], port: [], starboard: [], stern: [] }
+  const id = makeId()
+  const name = typeof seed.name === 'string' ? seed.name : ''
+  const slotsOccupied = clampMountSlots(seed.slotsOccupied ?? 1)
+  const sideLabel = SIDE_LABELS[side]
+  const summaryName = name.trim().length > 0 ? `"${name.trim()}"` : 'mount'
+  commit(
+    {
+      kind: 'ship.weaponMounts',
+      summary: `Added ${summaryName} to ${sideLabel} on ${ship.name}.`,
+      shipId,
+    },
+    () => {
+      ship.weaponInventory[side].push({ id, name, slotsOccupied })
+    },
+  )
+  return id
+}
+
+/**
+ * Patch a single mount in place. Coalesces successive edits to the same
+ * mount/field into one log line so typing a name letter-by-letter (or
+ * holding the slot stepper) doesn't flood the log — see the
+ * `coalesceKey` mechanism in `commit()`. Editing a different field on the
+ * same mount, or the same field on a different mount, breaks the chain.
+ *
+ * No-ops silently when `mountId` doesn't exist (e.g. it was just deleted
+ * by another action and a stale UI sent a follow-up patch).
+ *
+ * @param {string} shipId
+ * @param {'bow'|'port'|'starboard'|'stern'} side
+ * @param {string} mountId
+ * @param {{ name?: string, slotsOccupied?: number }} patch
+ */
+export function setShipWeaponMount(shipId, side, mountId, patch) {
+  const ship = getShipOrThrow(shipId)
+  const list = ship.weaponInventory?.[side]
+  if (!Array.isArray(list)) return
+  const idx = list.findIndex((m) => m.id === mountId)
+  if (idx < 0) return
+  const current = list[idx]
+
+  /** @type {Partial<{ name: string, slotsOccupied: number }>} */
+  const next = {}
+  let coalesceField = null
+  if (typeof patch.name === 'string' && patch.name !== current.name) {
+    next.name = patch.name
+    coalesceField = 'name'
+  }
+  if (patch.slotsOccupied != null) {
+    const clamped = clampMountSlots(patch.slotsOccupied)
+    if (clamped !== current.slotsOccupied) {
+      next.slotsOccupied = clamped
+      coalesceField = coalesceField ?? 'slotsOccupied'
+    }
+  }
+  if (Object.keys(next).length === 0) return
+
+  const sideLabel = SIDE_LABELS[side]
+  // Use the coalesced chain anchor for the "before" half of the summary so
+  // a flurry of stepper / keystroke commits collapses into a single log
+  // entry that still reads "Falconet (1-slot) → Falconet (3-slot)" instead
+  // of "Falconet (2-slot) → Falconet (3-slot)" (the most recent step). See
+  // `getCoalescedBefore` for the same trick used by combat resources.
+  const coalesceKey = `weaponMount|${shipId}|${side}|${mountId}|${coalesceField}`
+  const chainBefore = getCoalescedBefore(coalesceKey)
+  const chainCurrent =
+    chainBefore?.ships?.[shipId]?.weaponInventory?.[side]?.find((m) => m.id === mountId) ?? current
+  const previousLabel = labelMount(chainCurrent)
+  const merged = { ...current, ...next }
+  const nextLabel = labelMount(merged)
+  const summary = `${sideLabel} mount on ${ship.name}: ${previousLabel} → ${nextLabel}.`
+
+  commit(
+    {
+      kind: 'ship.weaponMounts',
+      summary,
+      shipId,
+      coalesceKey,
+    },
+    () => {
+      list[idx] = { ...current, ...next }
+    },
+  )
+}
+
+/**
+ * Remove a single mount from a side's inventory and re-derive the slot
+ * count. No-op when the mount doesn't exist.
+ *
+ * @param {string} shipId
+ * @param {'bow'|'port'|'starboard'|'stern'} side
+ * @param {string} mountId
+ */
+export function removeShipWeaponMount(shipId, side, mountId) {
+  const ship = getShipOrThrow(shipId)
+  const list = ship.weaponInventory?.[side]
+  if (!Array.isArray(list)) return
+  const idx = list.findIndex((m) => m.id === mountId)
+  if (idx < 0) return
+  const removed = list[idx]
+  const sideLabel = SIDE_LABELS[side]
+  commit(
+    {
+      kind: 'ship.weaponMounts',
+      summary: `Removed ${labelMount(removed)} from ${sideLabel} on ${ship.name}.`,
+      shipId,
+    },
+    () => {
+      list.splice(idx, 1)
+    },
+  )
+}
+
+/**
+ * Pretty-print a weapon mount for log summaries. Falls back to "Unnamed
+ * mount (Nx)" so blank-name rows still surface a readable line in the
+ * Captain's Log instead of an empty quote.
+ *
+ * @param {import('../domain/types.js').WeaponMount} mount
+ * @returns {string}
+ */
+function labelMount(mount) {
+  const name = (mount.name ?? '').trim()
+  const slots = mount.slotsOccupied
+  const slotsSuffix = slots > 1 ? ` (${slots}-slot)` : ''
+  if (name.length === 0) return `unnamed mount${slotsSuffix}`
+  return `"${name}"${slotsSuffix}`
+}
+
+/** @type {Record<'bow'|'port'|'starboard'|'stern', string>} */
+const SIDE_LABELS = { bow: 'bow', port: 'port', starboard: 'starboard', stern: 'stern' }
+
+/**
+ * Update one or more supply tracks (Grub / Grog / Gear) on a ship. A
+ * multi-track patch is committed as one entry; single-track stepper
+ * bursts (e.g. holding the Gear "+" from 1 to 5) coalesce into a single
+ * "gear 1 → 5" log line via `coalesceKey`. Touching a different track,
+ * or any unrelated mutator, breaks the chain.
  *
  * @param {string} shipId
  * @param {Partial<import('../domain/types.js').Supplies>} patch
  */
 export function setShipSupplies(shipId, patch) {
   const ship = getShipOrThrow(shipId)
+  /** @type {Array<'grub'|'grog'|'gear'>} */
+  const trackKeys = ['grub', 'grog', 'gear']
   /** @type {Partial<import('../domain/types.js').Supplies>} */
   const next = {}
-  for (const key of /** @type {const} */ (['grub', 'grog', 'gear'])) {
+  for (const key of trackKeys) {
     if (patch[key] != null) {
       const value = Math.max(0, Math.floor(Number(patch[key]) || 0))
       if (value !== ship.supplies[key]) next[key] = value
@@ -970,15 +1193,27 @@ export function setShipSupplies(shipId, patch) {
   }
   if (Object.keys(next).length === 0) return
 
+  const changedTracks = trackKeys.filter((k) => next[k] != null)
+  const onlyChangedTrack = changedTracks.length === 1 ? changedTracks[0] : null
+  const coalesceKey = onlyChangedTrack ? `ship.supplies.${onlyChangedTrack}|${shipId}` : null
+  const chainBefore = coalesceKey != null ? getCoalescedBefore(coalesceKey) : null
+
   const summaryParts = []
-  for (const key of /** @type {const} */ (['grub', 'grog', 'gear'])) {
-    if (next[key] != null) summaryParts.push(`${key} ${ship.supplies[key]} → ${next[key]}`)
+  for (const key of trackKeys) {
+    if (next[key] != null) {
+      const fromValue =
+        key === onlyChangedTrack && chainBefore?.ships?.[shipId]?.supplies?.[key] != null
+          ? chainBefore.ships[shipId].supplies[key]
+          : ship.supplies[key]
+      summaryParts.push(`${key} ${fromValue} → ${next[key]}`)
+    }
   }
   commit(
     {
       kind: 'ship.supplies',
       summary: `Supplies on ${ship.name}: ${summaryParts.join(', ')}.`,
       shipId,
+      coalesceKey,
     },
     () => {
       Object.assign(ship.supplies, next)
@@ -1051,9 +1286,23 @@ export function setOfficer(shipId, station, patch) {
   }
   if (Object.keys(next).length === 0) return
 
+  // Coalesce only the lone-rank-bump case (the typical stepper burst). Any
+  // patch that touches name or status is a discrete decision and skips
+  // coalescing so the log doesn't muddle "promoted" with "renamed."
+  let coalesceKey = null
+  let chainRank = null
+  if ('rank' in next && !('name' in next) && !('status' in next)) {
+    coalesceKey = `officer.rank|${shipId}|${station}`
+    const chainBefore = getCoalescedBefore(coalesceKey)
+    chainRank = chainBefore?.ships?.[shipId]?.officers?.[station]?.rank ?? null
+  }
+
   const summaryParts = []
   if ('name' in next) summaryParts.push(`name → ${next.name ?? '(blank)'}`)
-  if ('rank' in next) summaryParts.push(`rank ${officer.rank} → ${next.rank}`)
+  if ('rank' in next) {
+    const fromRank = chainRank != null ? chainRank : officer.rank
+    summaryParts.push(`rank ${fromRank} → ${next.rank}`)
+  }
   if ('status' in next) summaryParts.push(`status ${officer.status} → ${next.status}`)
 
   commit(
@@ -1061,6 +1310,7 @@ export function setOfficer(shipId, station, patch) {
       kind: 'officer.update',
       summary: `${STATION_LABELS[station]} on ${ship.name}: ${summaryParts.join(', ')}.`,
       shipId,
+      coalesceKey,
     },
     () => {
       Object.assign(ship.officers[station], next)
@@ -1136,110 +1386,14 @@ export function setOfficerPortrait(shipId, station, dataUrl) {
   return true
 }
 
-/**
- * Toggle whether a ship has a player-character extension.
- * Adds or removes `ship.playerCharacter`. Removal also cleans up the PC portrait.
- * @param {string} shipId
- * @param {boolean} enabled
- */
-export function setPlayerCharacterEnabled(shipId, enabled) {
-  const ship = getShipOrThrow(shipId)
-  const hasIt = ship.playerCharacter != null
-  if (hasIt === enabled) return
-  commit(
-    {
-      kind: 'pc.toggle',
-      summary: enabled
-        ? `Marked ${ship.name} as a player-character ship.`
-        : `Removed player-character extension from ${ship.name}.`,
-      shipId,
-    },
-    () => {
-      if (enabled) {
-        ship.playerCharacter = {
-          characterName: ship.officers.captain.name ?? ship.name,
-          traits: '',
-          portraitImageId: null,
-        }
-      } else {
-        ship.playerCharacter = null
-        pruneUnreferencedImages()
-      }
-    },
-  )
-}
-
-/**
- * Patch the player character's name and/or traits.
- * @param {string} shipId
- * @param {{ characterName?: string, traits?: string }} patch
- */
-export function setPlayerCharacterFields(shipId, patch) {
-  const ship = getShipOrThrow(shipId)
-  if (!ship.playerCharacter) return
-  const pc = ship.playerCharacter
-  /** @type {Record<string, string>} */
-  const next = {}
-  if (patch.characterName != null) {
-    const trimmed = String(patch.characterName).trim() || ship.name
-    if (trimmed !== pc.characterName) next.characterName = trimmed
-  }
-  if (patch.traits != null) {
-    const traits = String(patch.traits)
-    if (traits !== pc.traits) next.traits = traits
-  }
-  if (Object.keys(next).length === 0) return
-
-  const summaryParts = []
-  if ('characterName' in next) summaryParts.push(`name → ${next.characterName}`)
-  if ('traits' in next) summaryParts.push('traits updated')
-
-  commit(
-    {
-      kind: 'pc.update',
-      summary: `Player character on ${ship.name}: ${summaryParts.join(', ')}.`,
-      shipId,
-    },
-    () => {
-      Object.assign(pc, next)
-    },
-  )
-}
-
-/**
- * Replace the player character's portrait. Pass null to clear.
- * @param {string} shipId
- * @param {string|null} dataUrl
- * @returns {boolean} false when the upload was rejected for being over the
- *   image-store cap; true on a successful commit (or a no-op clear).
- */
-export function setPlayerCharacterPortrait(shipId, dataUrl) {
-  const ship = getShipOrThrow(shipId)
-  if (!ship.playerCharacter) return true
-  const pc = ship.playerCharacter
-  const replacing = pc.portraitImageId
-  if (!dataUrl && !replacing) return true
-  if (dataUrl) {
-    const overflow = projectImageStoreOverflow(replacing, dataUrl)
-    if (overflow) {
-      pushImageCapToast(overflow)
-      return false
-    }
-  }
-  const action = dataUrl ? (replacing ? 'Replaced' : 'Added') : 'Removed'
-  commit(
-    {
-      kind: 'pc.portrait',
-      summary: `${action} player character portrait on ${ship.name}.`,
-      shipId,
-    },
-    () => {
-      pc.portraitImageId = commitImageReplacement(dataUrl)
-      pruneUnreferencedImages()
-    },
-  )
-  return true
-}
+// v1.0.4: the legacy `setPlayerCharacterEnabled` / `setPlayerCharacterFields`
+// / `setPlayerCharacterPortrait` mutators were removed when the player
+// character became synonymous with the captain. The captain officer card
+// (`setOfficer`, `setOfficerNotes`, `setOfficerPortrait`) is now the sole
+// edit surface for character identity, traits, and likeness. Old saves with
+// a populated `ship.playerCharacter` block still load — see
+// `migrateLegacyPlayerCharacter` in loadFile.js — but the field is no
+// longer surfaced or written by the UI.
 
 // ---------- Scene mutators (v0.4) ----------
 // Scene state is session-scoped: scene ships, weather gage, pursuit, round, phase,
@@ -1439,10 +1593,58 @@ export function setSceneShip(sceneShipId, patch) {
 
   if (Object.keys(next).length === 0) return
 
+  // Coalesce single-stepper patches on a scene ship — fires, explosion DC,
+  // hull current, hull max — so a 0→4 burst on an NPC reads the same as
+  // the player-ship combat resources do upstream.
+  let coalesceKey = null
+  /** @type {string | null} */
+  let coalesceFrom = null
+  const onlyKey = Object.keys(next).length === 1 ? Object.keys(next)[0] : null
+  if (onlyKey === 'fires') {
+    coalesceKey = `scene.ship.fires|${sceneShipId}`
+    const chainBefore = getCoalescedBefore(coalesceKey)
+    const fromValue = chainBefore?.scene?.sceneShips?.[sceneShipId]?.fires ?? sceneShip.fires
+    const toValue = /** @type {number} */ (next.fires)
+    coalesceFrom = `fires ${fromValue} → ${toValue}`
+  } else if (onlyKey === 'explosionDC') {
+    coalesceKey = `scene.ship.explosionDC|${sceneShipId}`
+    const chainBefore = getCoalescedBefore(coalesceKey)
+    const fromValue =
+      chainBefore?.scene?.sceneShips?.[sceneShipId]?.explosionDC ?? sceneShip.explosionDC
+    const toValue = /** @type {number} */ (next.explosionDC)
+    coalesceFrom = `explosion DC ${fromValue} → ${toValue}`
+  } else if (onlyKey === 'hp') {
+    // Only coalesce a single hp axis (current XOR max) — touching both at
+    // once is a "set hull to N/M" decision and stays as one entry.
+    const newHp = /** @type {{current?: number, max?: number}} */ (next.hp)
+    const currentChanged = newHp.current !== sceneShip.hp.current
+    const maxChanged = newHp.max !== sceneShip.hp.max
+    if (currentChanged && !maxChanged) {
+      coalesceKey = `scene.ship.hp.current|${sceneShipId}`
+      const chainBefore = getCoalescedBefore(coalesceKey)
+      const fromValue =
+        chainBefore?.scene?.sceneShips?.[sceneShipId]?.hp?.current ?? sceneShip.hp.current
+      const toValue = newHp.current ?? sceneShip.hp.current
+      coalesceFrom = `hull ${fromValue} → ${toValue}`
+    } else if (maxChanged && !currentChanged) {
+      coalesceKey = `scene.ship.hp.max|${sceneShipId}`
+      const chainBefore = getCoalescedBefore(coalesceKey)
+      const fromValue =
+        chainBefore?.scene?.sceneShips?.[sceneShipId]?.hp?.max ?? sceneShip.hp.max
+      const toValue = newHp.max ?? sceneShip.hp.max
+      coalesceFrom = `max ${fromValue} → ${toValue}`
+    }
+  }
+  if (coalesceFrom) {
+    summaryParts.length = 0
+    summaryParts.push(coalesceFrom)
+  }
+
   commit(
     {
       kind: 'scene.shipUpdate',
       summary: `${sceneShip.name} (scene): ${summaryParts.join(', ')}.`,
+      coalesceKey,
     },
     () => {
       Object.assign(sceneShip, next)
@@ -1545,10 +1747,49 @@ export function setPursuit(patch) {
 
   if (Object.keys(next).length === 0) return
 
+  // Coalesce stepper bursts on the gap or the escape timer, but only when
+  // they're moving alone (a multi-field patch indicates the captain set up
+  // the chase intentionally — e.g. "pursuer + quarry + gap" — and that
+  // deserves one entry, not a coalesced run with the previous bump).
+  let coalesceKey = null
+  let chainGap = null
+  let chainTimer = null
+  if (
+    'gap' in next &&
+    Object.keys(next).length === 1
+  ) {
+    coalesceKey = 'scene.pursuit.gap'
+    const chainBefore = getCoalescedBefore(coalesceKey)
+    chainGap = chainBefore?.scene?.pursuit?.gap ?? null
+  } else if (
+    'escapeTimer' in next &&
+    Object.keys(next).length === 1
+  ) {
+    coalesceKey = 'scene.pursuit.escapeTimer'
+    const chainBefore = getCoalescedBefore(coalesceKey)
+    chainTimer = chainBefore?.scene?.pursuit?.escapeTimer ?? null
+  }
+
+  // Rebuild the summary line for whichever single-field stepper was caught
+  // so the chain reads `gap 0 → 5` even when intermediate bumps already
+  // moved 0→1, 1→2, 2→3, …
+  if (coalesceKey === 'scene.pursuit.gap' && chainGap != null && chainGap !== next.gap) {
+    summaryParts.length = 0
+    summaryParts.push(`gap ${chainGap} → ${next.gap}`)
+  } else if (
+    coalesceKey === 'scene.pursuit.escapeTimer' &&
+    chainTimer != null &&
+    chainTimer !== next.escapeTimer
+  ) {
+    summaryParts.length = 0
+    summaryParts.push(`escape timer ${chainTimer} → ${next.escapeTimer}`)
+  }
+
   commit(
     {
       kind: 'scene.pursuit',
       summary: `Pursuit: ${summaryParts.join(', ')}.`,
+      coalesceKey,
     },
     () => {
       Object.assign(pursuit, next)
@@ -1566,10 +1807,17 @@ export function setSceneRound(value) {
   const next = Math.max(0, Math.floor(Number(value) || 0))
   const previous = workspace.scene.round
   if (next === previous) return
+  // The round stepper bursts the same way a stat stepper does — hold the
+  // button to skip ahead, and the log used to fill with "Round 1 → 2",
+  // "Round 2 → 3", … coalescing flattens that to one "Round 1 → 5" entry.
+  const coalesceKey = 'scene.round'
+  const chainBefore = getCoalescedBefore(coalesceKey)
+  const fromRound = chainBefore?.scene?.round ?? previous
   commit(
     {
       kind: 'scene.round',
-      summary: `Round ${previous} → ${next}.`,
+      summary: `Round ${fromRound} → ${next}.`,
+      coalesceKey,
     },
     () => {
       workspace.scene.round = next
@@ -1638,11 +1886,10 @@ export function setSceneWind(direction) {
  *     per v0.7 product decision; it doesn't carry over a session break)
  *
  * Persistent ship state (HP, crew, fires, mettle, supplies, persistent
- * conditions, journal) is left alone — the player decides what gets restored
+ * conditions) is left alone — the player decides what gets restored
  * between sessions, and conflating persistence boundaries here would be a
- * surprise. The single workspace-level Activity Log entry summarizes what
- * was reset; per-ship Captain's Logs stay untouched until the player
- * explicitly closes a session.
+ * surprise. The single workspace-level Captain's-Log entry summarizes what
+ * was reset.
  *
  * No-op when there's nothing to reset (idle scene, no boarding pointers).
  */
@@ -1724,7 +1971,7 @@ export function endScene() {
 // ---------- Combat resource mutators (v0.5) ----------
 // Mettle, crew, and fires all change rapidly during a fight. Per the v0.5
 // product decision, sequential edits to the same resource on the same ship
-// inside a single scene round are coalesced into one Activity Log line and
+// inside a single scene round are coalesced into one Captain's Log line and
 // one undo step. The user-visible summary always reads "from chain-start →
 // to latest"; pressing undo unwinds the entire chain back to the round's
 // opening state. Crossing a round boundary, switching resource (mettle vs
@@ -1877,13 +2124,16 @@ export function setShipCrewMax(shipId, value) {
   const ship = getShipOrThrow(shipId)
   const next = Math.max(1, Math.floor(Number(value) || 0))
   if (next === ship.crew.max) return
-  const previousMax = ship.crew.max
+  const coalesceKey = `ship.crew.max|${shipId}`
+  const chainBefore = getCoalescedBefore(coalesceKey)
+  const previousMax = chainBefore?.ships?.[shipId]?.crew?.max ?? ship.crew.max
   const clampedCurrent = Math.min(ship.crew.current, next)
   commit(
     {
       kind: 'ship.crewMax',
       summary: `Crew max ${previousMax} → ${next} on ${ship.name}.`,
       shipId,
+      coalesceKey,
     },
     () => {
       ship.crew.max = next
@@ -1894,7 +2144,9 @@ export function setShipCrewMax(shipId, value) {
 
 /**
  * Set crew.skeleton — the threshold below which the ship is short-handed.
- * Clamped to [0, crew.max]. Not coalesced (config-style edit).
+ * Clamped to [0, crew.max]. Coalesces successive stepper bumps so a 0→4
+ * burst reads as one log line.
+ *
  * @param {string} shipId
  * @param {number} value
  */
@@ -1902,12 +2154,15 @@ export function setShipCrewSkeleton(shipId, value) {
   const ship = getShipOrThrow(shipId)
   const next = Math.max(0, Math.min(ship.crew.max, Math.floor(Number(value) || 0)))
   if (next === ship.crew.skeleton) return
-  const previous = ship.crew.skeleton
+  const coalesceKey = `ship.crew.skeleton|${shipId}`
+  const chainBefore = getCoalescedBefore(coalesceKey)
+  const previous = chainBefore?.ships?.[shipId]?.crew?.skeleton ?? ship.crew.skeleton
   commit(
     {
       kind: 'ship.crewSkeleton',
       summary: `Skeleton crew mark ${previous} → ${next} on ${ship.name}.`,
       shipId,
+      coalesceKey,
     },
     () => {
       ship.crew.skeleton = next
@@ -1919,7 +2174,7 @@ export function setShipCrewSkeleton(shipId, value) {
 // At the table the same combat event usually hits multiple resources at once
 // — a broadside might shave hull, rattle Mettle, ignite a fire, and shred a
 // few crew. Threading those through four separate stepper commits clutters
-// the Activity Log and bloats the undo stack. The composers below take a
+// the Captain's Log and bloats the undo stack. The composers below take a
 // `damages` (or `repair`) object plus an optional source string and produce
 // a single coalesced commit with one human-readable summary line.
 //
@@ -2060,10 +2315,16 @@ export function applyRepair(shipId, hullRestored = 0, costs = {}, source = '') {
  * left alone — that's `endScene`'s job).
  *
  * The whole batch lives on one entry of the undo stack so a single Cmd+Z
- * unwinds the entire shore leave. The Activity Log gets one workspace-level
- * summary; each affected ship's Captain's Log gets its own per-ship line via
- * direct `appendShipLog` calls (intentionally bypassing `commit`'s built-in
- * auto-logger, which only knows how to attach to one ship at a time).
+ * unwinds the entire shore leave. The Captain's Log gets one workspace-level
+ * summary line; the dirty / "unsaved" indicator advances on each affected
+ * ship by stamping `lastModifiedAt` inside the same commit closure, so
+ * Save All picks them all up after one shore leave.
+ *
+ * v1.0.4 — the per-ship narrative log was retired alongside the
+ * `sessionHistory` feature. The dialog still renders a per-ship preview via
+ * `composeShoreLeaveSummary`, but the mutator no longer emits a separate
+ * log line per ship; the workspace summary plus per-ship `lastModifiedAt`
+ * stamping is enough to show what landed.
  *
  * Behavior:
  *   - Unknown ship ids are silently filtered out (defensive against stale
@@ -2104,8 +2365,7 @@ export function applyShoreLeave(shipIds, deltas = {}, options = {}, source = '')
 
   /**
    * Per-ship effective changes, computed up front so the commit callback can
-   * apply them directly and the post-commit log loop can reuse the same
-   * numbers without re-clamping.
+   * apply them directly without re-clamping.
    * @type {Array<{
    *   id: string,
    *   ship: import('../domain/types.js').Ship,
@@ -2149,8 +2409,7 @@ export function applyShoreLeave(shipIds, deltas = {}, options = {}, source = '')
   const sourceClause = trimmedSource ? ` (${trimmedSource})` : ''
   const shipNames = planned.map((p) => p.ship.name)
   // Three-name threshold mirrors the natural read-aloud length: "Lassie,
-  // Black Pearl, Interceptor" stays scannable; four+ collapses to a count
-  // and defers the per-ship details to each Captain's Log.
+  // Black Pearl, Interceptor" stays scannable; four+ collapses to a count.
   const workspaceSummary =
     shipNames.length <= 3
       ? `Shore leave on ${shipNames.join(', ')}${sourceClause}.`
@@ -2162,6 +2421,12 @@ export function applyShoreLeave(shipIds, deltas = {}, options = {}, source = '')
       summary: workspaceSummary,
     },
     () => {
+      // Multi-ship commits don't go through commit()'s single-shipId
+      // auto-stamp, so we stamp each affected ship explicitly inside the
+      // closure. One shared timestamp keeps the dirty pills lighting up
+      // together, and including the stamp in the snapshotted `after`
+      // means undo correctly winds them back in lockstep.
+      const stamp = nowIso()
       for (const p of planned) {
         const ship = p.ship
         if (p.appliedHull > 0) {
@@ -2173,39 +2438,10 @@ export function applyShoreLeave(shipIds, deltas = {}, options = {}, source = '')
         if (p.willClearScene) {
           delete workspace.scene.shipConditions[p.id]
         }
+        ship.lastModifiedAt = stamp
       }
     },
   )
-
-  // Per-ship Captain's-Log entries. Manual appendShipLog (rather than
-  // multiple commit() calls) keeps the whole shore leave on one undo step
-  // while still surfacing per-ship details where the captain reads them.
-  // These appended entries persist with the ship via autosave snapshot but
-  // are intentionally NOT in the undo stack; they share the redo-gap caveat
-  // with single-ship commits — same trade-off, same precedent.
-  for (const p of planned) {
-    const perShipSummary = composeShoreLeaveSummary(
-      {
-        hull: p.appliedHull,
-        grub: p.appliedGrub,
-        grog: p.appliedGrog,
-        gear: p.appliedGear,
-      },
-      { clearSceneConditions: p.willClearScene },
-      p.ship.name,
-      source,
-    )
-    if (perShipSummary == null) continue
-    appendShipLog(p.id, {
-      id: makeId(),
-      timestamp: nowIso(),
-      kind: 'ship.shore-leave',
-      summary: perShipSummary,
-      shipId: p.id,
-      before: {},
-      after: {},
-    })
-  }
 }
 
 // ---------- Flag mutators (v0.5) ----------
@@ -2374,11 +2610,44 @@ export function setShipFlag(shipId, flagId, patch) {
 
   if (Object.keys(next).length === 0) return
 
+  // Coalesce only the common stepper case: a single rep-axis bump on a
+  // single flag of a single ship. Touching the name, the boolean toggles,
+  // or multiple axes at once is a discrete decision and skips coalescing.
+  let coalesceKey = null
+  if (
+    next.reputation != null &&
+    next.name == null &&
+    next.isFalse == null &&
+    next.isPirate == null &&
+    next.isFaction == null
+  ) {
+    const current = normalizeReputation(flag.reputation)
+    const desired = /** @type {import('../domain/types.js').Reputation} */ (next.reputation)
+    const changedAxes = REPUTATION_AXES.filter((axis) => current[axis] !== desired[axis])
+    if (changedAxes.length === 1) {
+      const axis = changedAxes[0]
+      coalesceKey = `flag.rep.${axis}|${shipId}|${flagId}`
+      const chainBefore = getCoalescedBefore(coalesceKey)
+      const chainFlag =
+        chainBefore?.ships?.[shipId]?.flags?.flown?.find((f) => f.id === flagId) ??
+        chainBefore?.ships?.[shipId]?.flags?.known?.find((f) => f.id === flagId) ??
+        null
+      const chainCurrent = chainFlag ? normalizeReputation(chainFlag.reputation) : current
+      // Rewrite the rep-axis summary line so the chain reads "good 0 → 5"
+      // even when intermediate stepper bumps already moved 0 → 1, 1 → 2, …
+      summaryParts.length = 0
+      summaryParts.push(
+        `${REPUTATION_AXIS_LABELS[axis]} reputation ${chainCurrent[axis]} → ${desired[axis]}`,
+      )
+    }
+  }
+
   commit(
     {
       kind: 'ship.flagUpdate',
       summary: `Flag ${flag.name} on ${ship.name}: ${summaryParts.join(', ')}.`,
       shipId,
+      coalesceKey,
     },
     () => {
       Object.assign(flag, next)
@@ -2627,35 +2896,20 @@ export function applyFlagToShips(sourceShipId, sourceFlagId, targetShipIds, opti
       summary: workspaceSummary,
     },
     () => {
+      // v1.0.4: same multi-ship dirty-stamping precedent as applyShoreLeave.
+      // The workspace log only carries one summary line, but each target
+      // ship's `lastModifiedAt` advances so Save All catches them all.
+      const stamp = nowIso()
       for (const [id, newFlag] of newFlagByShip) {
         const ship = workspace.ships[id]
         ship.flags.flown.push(newFlag)
         if (raiseOnTargets || ship.flags.flyingId == null) {
           ship.flags.flyingId = newFlag.id
         }
+        ship.lastModifiedAt = stamp
       }
     },
   )
-
-  // Per-ship narrative entries — same precedent as applyShoreLeave: keep the
-  // batch on one undo step while still surfacing per-ship detail in each
-  // Captain's Log.
-  for (const id of applied) {
-    const newFlag = newFlagByShip.get(id)
-    if (!newFlag) continue
-    const ship = workspace.ships[id]
-    const becameFlying = ship.flags.flyingId === newFlag.id
-    const verb = becameFlying ? 'Raised' : 'Stowed'
-    appendShipLog(id, {
-      id: makeId(),
-      timestamp: nowIso(),
-      kind: 'ship.flagAdd',
-      summary: `${verb} flag ${flagName} on ${ship.name} (from ${sourceShipName}).`,
-      shipId: id,
-      before: {},
-      after: {},
-    })
-  }
 
   return { applied, skipped }
 }
@@ -2736,8 +2990,10 @@ export function setShipSceneCondition(anyShipId, condition, on) {
       summary: on
         ? `${shipName} marked ${label}.`
         : `${shipName} no longer ${label}.`,
-      // Tag the action with the player ship id so the per-ship Captain's Log
-      // picks it up too. Scene-ship-only entries stay scene-scoped.
+      // Tag the action with the player ship id so the dirty stamp lands on
+      // the right hull. Scene-ship-only conditions stay scene-scoped (no
+      // shipId means no `lastModifiedAt` advance, since scene ships are
+      // ephemeral and don't have an "unsaved" pill to light up).
       shipId: isPlayer ? anyShipId : null,
     },
     () => {
@@ -2772,113 +3028,19 @@ function formatConditionLabel(id) {
   return id
 }
 
-// ---------- Captain's Log narrative mutators (v0.5) ----------
-// `appendShipLog` (the auto-logger) creates a fresh open SessionEntry whenever
-// the most recent entry is closed (or none exists), so user-authored title and
-// narrative writes layer on top of that with no extra plumbing — they just
-// mutate fields on an existing entry and ride through commit() like any other
-// edit. Closing a session sets `endedAt`; the very next auto-logged action
-// will then start a new entry, which the user can rename in turn.
-
-/**
- * Patch the user-visible title and/or narrative on any SessionEntry in a
- * ship's history. Used by the JournalSection editor; identifies the entry by
- * id so closed entries can still be edited later.
- *
- * Empty / whitespace-only titles snap back to "Session" (the auto-logger
- * default); narratives accept any string including empty.
- *
- * @param {string} shipId
- * @param {string} entryId
- * @param {{ title?: string, narrative?: string }} patch
- */
-export function setSessionEntryFields(shipId, entryId, patch) {
-  const ship = getShipOrThrow(shipId)
-  const entry = (ship.sessionHistory ?? []).find((e) => e.id === entryId)
-  if (!entry) return
-
-  /** @type {Record<string, string>} */
-  const next = {}
-  if (patch.title != null) {
-    const trimmed = String(patch.title).trim()
-    const finalTitle = trimmed.length > 0 ? trimmed : 'Session'
-    if (finalTitle !== entry.title) next.title = finalTitle
-  }
-  if (patch.narrative != null) {
-    const narrative = String(patch.narrative)
-    if (narrative !== entry.narrative) next.narrative = narrative
-  }
-  if (patch.sessionDate != null) {
-    const v = String(patch.sessionDate)
-    if (v !== (entry.sessionDate ?? '')) next.sessionDate = v
-  }
-  if (patch.location != null) {
-    const v = String(patch.location)
-    if (v !== (entry.location ?? '')) next.location = v
-  }
-  if (patch.encounterName != null) {
-    const v = String(patch.encounterName)
-    if (v !== (entry.encounterName ?? '')) next.encounterName = v
-  }
-  if (Object.keys(next).length === 0) return
-
-  const summaryParts = []
-  if ('title' in next) summaryParts.push(`title → "${next.title}"`)
-  if ('narrative' in next) summaryParts.push('narrative updated')
-  if ('sessionDate' in next) summaryParts.push(`played → "${next.sessionDate || '(blank)'}"`)
-  if ('location' in next) summaryParts.push(`location → "${next.location || '(blank)'}"`)
-  if ('encounterName' in next) summaryParts.push(`encounter → "${next.encounterName || '(blank)'}"`)
-
-  commit(
-    {
-      kind: 'session.update',
-      summary: `Captain's log on ${ship.name}: ${summaryParts.join(', ')}.`,
-      shipId,
-    },
-    () => {
-      Object.assign(entry, next)
-    },
-  )
-}
-
-/**
- * Close the most recent open SessionEntry on a ship — a chapter break. The
- * close is itself a logged action; since we close `endedAt` first, the
- * auto-logger sees the entry as closed and starts a fresh session containing
- * the "Closed session" log line. This is intentional: it makes the close
- * timestamp easy to spot at the top of the new session.
- *
- * Optionally accepts a final title/narrative patch applied in the same
- * commit, so the user can write the closing entry and click Close in one go.
- *
- * @param {string} shipId
- * @param {{ title?: string, narrative?: string }} [finalPatch]
- */
-export function closeCurrentSession(shipId, finalPatch = {}) {
-  const ship = getShipOrThrow(shipId)
-  const last = ship.sessionHistory?.[ship.sessionHistory.length - 1]
-  if (!last || last.endedAt != null) return
-
-  const finalTitle =
-    finalPatch.title != null
-      ? String(finalPatch.title).trim() || last.title
-      : last.title
-  const finalNarrative =
-    finalPatch.narrative != null ? String(finalPatch.narrative) : last.narrative
-
-  commit(
-    {
-      kind: 'session.close',
-      summary: `Closed session "${finalTitle}" on ${ship.name}.`,
-      shipId,
-    },
-    () => {
-      last.title = finalTitle
-      last.narrative = finalNarrative
-      last.endedAt = nowIso()
-    },
-  )
-}
+// ---------- Per-ship narrative journal — RETIRED v1.0.4 ----------
+// v0.5 introduced a per-ship `sessionHistory` with a "Captain's Log"
+// editor (title/narrative + Played/Location/Encounter metadata) and two
+// mutators here: `setSessionEntryFields` for editing in place and
+// `closeCurrentSession` for chapter breaks. v1.0.4 retired the feature
+// because it was out of scope for ship-combat tracking — narrative
+// authoring is fine in a notebook (or a real word processor) and a
+// dashboard widget added clutter without a clear win. The dashboard's
+// workspace-level log was renamed back to "Captain's Log" to take the
+// reclaimed name. Old saves are migrated forward by
+// `migrateLegacySessionHistory()` in `loadFile.js` — the most-recent
+// `actions[].timestamp` lands in `Ship.lastModifiedAt` so the dirty
+// indicator behaves identically, and the rest of the entry is dropped.
 
 /**
  * Resolve a ship-id reference (player ship or scene ship) to a human label
@@ -2906,6 +3068,18 @@ export function __resetForTests() {
 
 /** Replace state from autosave / Resume — does NOT push undo, since it's recovery. */
 export function hydrateFromSnapshot(snapshot) {
+  // Run the same idempotent v1.0.4 migrations the file/bundle paths run so
+  // an older autosave (with a populated `playerCharacter` block, no
+  // `weaponInventory` field, or a stale `sessionHistory` array) still lands
+  // in a clean shape. All three helpers bail safely on already-clean ships.
+  // See loadFile.js for the rationale on each.
+  if (snapshot?.ships) {
+    for (const id of Object.keys(snapshot.ships)) {
+      migrateLegacyPlayerCharacter(snapshot.ships[id])
+      migrateLegacyWeaponInventory(snapshot.ships[id])
+      migrateLegacySessionHistory(snapshot.ships[id])
+    }
+  }
   replaceWorkspaceWith(snapshot)
 }
 

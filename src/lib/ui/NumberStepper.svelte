@@ -24,6 +24,20 @@
      * of forcing a manual select-all gesture before typing.
      */
     autofocus = false,
+    /**
+     * When true, the stepper expands to fill its parent's width and the
+     * three segments share equal-ish widths via flexbox: the input
+     * stretches (`flex-1`) and the +/- buttons stay at their natural
+     * `w-9` size on either flank. Without this, the wrapper is
+     * `inline-flex` and the input is fixed at `w-16` — fine for tight
+     * inline cells (combat resources, weapon slot counters), but inside
+     * a wider grid cell (Supplies' three Field columns) the buttons
+     * appear as narrow vertical stripes pinned to the side, making the
+     * `+` segment read as wider than the `-` segment because of the
+     * surrounding white space. `fullWidth` snaps everything onto a
+     * symmetric track so the number sits between two equal buttons.
+     */
+    fullWidth = false,
     onchange,
   } = $props()
 
@@ -75,10 +89,12 @@
   })
 </script>
 
-<div class={`inline-flex items-center rounded-md border overflow-hidden ${toneClass}`}>
+<div
+  class={`${fullWidth ? 'flex w-full' : 'inline-flex'} items-center rounded-md border overflow-hidden ${toneClass}`}
+>
   <button
     type="button"
-    class="w-8 h-9 flex items-center justify-center text-ink-700 hover:bg-surface-100 disabled:opacity-50 disabled:cursor-not-allowed"
+    class="w-8 h-9 shrink-0 flex items-center justify-center text-ink-700 hover:bg-surface-100 disabled:opacity-50 disabled:cursor-not-allowed"
     onclick={() => bump(-step)}
     disabled={disabled || value <= min}
     aria-label={ariaLabel ? `Decrease ${ariaLabel}` : 'Decrease'}
@@ -91,7 +107,7 @@
     bind:this={inputEl}
     {id}
     type="number"
-    class={`w-16 h-9 text-center bg-transparent border-x ${innerDividerClass} text-sm font-medium text-ink-900 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:outline-none`}
+    class={`${fullWidth ? 'flex-1 min-w-0' : 'w-16'} h-9 text-center bg-transparent border-x ${innerDividerClass} text-sm font-medium text-ink-900 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:outline-none`}
     value={value}
     {min}
     {max}
@@ -102,7 +118,7 @@
   />
   <button
     type="button"
-    class="w-8 h-9 flex items-center justify-center text-ink-700 hover:bg-surface-100 disabled:opacity-50 disabled:cursor-not-allowed"
+    class="w-8 h-9 shrink-0 flex items-center justify-center text-ink-700 hover:bg-surface-100 disabled:opacity-50 disabled:cursor-not-allowed"
     onclick={() => bump(step)}
     disabled={disabled || value >= max}
     aria-label={ariaLabel ? `Increase ${ariaLabel}` : 'Increase'}

@@ -18,7 +18,6 @@ import {
   applyCombatDamage,
   applyRepair,
   applyShoreLeave,
-  closeCurrentSession,
   applyFlagToShips,
   endScene,
   moveShipDown,
@@ -32,15 +31,11 @@ import {
   setOfficer,
   setOfficerNotes,
   setOfficerPortrait,
-  setPlayerCharacterEnabled,
-  setPlayerCharacterFields,
-  setPlayerCharacterPortrait,
   setPursuit,
   setSceneRound,
   setSceneShip,
   setScenePhase,
   setSceneWind,
-  setSessionEntryFields,
   setShipBoardedBy,
   setShipCrewCurrent,
   setShipCrewMax,
@@ -265,48 +260,6 @@ describe('officer mutators', () => {
     setOfficerPortrait(id, 'captain', null)
     expect(workspace.ships[id].officers.captain.portraitImageId).toBeNull()
     expect(Object.keys(workspace.images)).toHaveLength(0)
-  })
-})
-
-describe('player character mutators', () => {
-  it('toggling on creates a PC seeded from the captain (or ship) name', () => {
-    const { id } = addBasic({ name: 'Wavecutter' })
-    setOfficer(id, 'captain', { name: 'Eira Thorne' })
-    setPlayerCharacterEnabled(id, true)
-    expect(workspace.ships[id].playerCharacter).toEqual({
-      characterName: 'Eira Thorne',
-      traits: '',
-      portraitImageId: null,
-    })
-  })
-
-  it('toggling off clears the PC and prunes its portrait', () => {
-    const { id } = addBasic()
-    setPlayerCharacterEnabled(id, true)
-    setPlayerCharacterPortrait(id, 'data:image/png;base64,AAAA')
-    expect(Object.keys(workspace.images)).toHaveLength(1)
-    setPlayerCharacterEnabled(id, false)
-    expect(workspace.ships[id].playerCharacter).toBeNull()
-    expect(Object.keys(workspace.images)).toHaveLength(0)
-  })
-
-  it('setPlayerCharacterFields no-ops without a PC, edits when present', () => {
-    const { id } = addBasic()
-    const baseline = undoableCount()
-    setPlayerCharacterFields(id, { characterName: 'Iola' })
-    expect(undoableCount()).toBe(baseline)
-
-    setPlayerCharacterEnabled(id, true)
-    setPlayerCharacterFields(id, { characterName: 'Iola of Vornholt', traits: 'Flinty.' })
-    const pc = workspace.ships[id].playerCharacter
-    expect(pc).toMatchObject({ characterName: 'Iola of Vornholt', traits: 'Flinty.' })
-  })
-
-  it('blank PC name falls back to the ship name', () => {
-    const { id } = addBasic({ name: 'Wavecutter' })
-    setPlayerCharacterEnabled(id, true)
-    setPlayerCharacterFields(id, { characterName: '   ' })
-    expect(workspace.ships[id].playerCharacter?.characterName).toBe('Wavecutter')
   })
 })
 
@@ -646,14 +599,14 @@ describe('combat resource mutators (v0.5)', () => {
     expect(workspace.ships[id].crew.max).toBe(20)
   })
 
-  it('setShipCrewSkeleton clamps to [0, crew.max] and is not coalesced', () => {
+  it('setShipCrewSkeleton clamps to [0, crew.max] and coalesces sequential edits (v1.0.4)', () => {
     const { id } = addBasic({ crew: { current: 20, max: 20, skeleton: 5 } })
     const baseline = undoableCount()
     setShipCrewSkeleton(id, 200)
     expect(workspace.ships[id].crew.skeleton).toBe(20)
     setShipCrewSkeleton(id, 4)
     expect(workspace.ships[id].crew.skeleton).toBe(4)
-    expect(undoableCount()).toBe(baseline + 2)
+    expect(undoableCount()).toBe(baseline + 1)
   })
 })
 
@@ -890,29 +843,17 @@ describe('applyRepair (v0.8)', () => {
   })
 })
 
-/**
- * Pull the most recent action from a ship's open session entry.
- * Mirrors how JournalSection / per-ship UI surfaces the Captain's Log.
- */
-function lastShipLog(shipId) {
-  const ship = workspace.ships[shipId]
-  if (!ship) return null
-  for (let i = ship.sessionHistory.length - 1; i >= 0; i--) {
-    const session = ship.sessionHistory[i]
-    if (session.actions.length > 0) {
-      return session.actions[session.actions.length - 1]
-    }
-  }
-  return null
-}
-
 describe('applyShoreLeave (v0.9)', () => {
-  it('applies a single-ship shore leave: workspace summary + per-ship log line', () => {
+  it('applies a single-ship shore leave: workspace summary + per-ship lastModifiedAt stamp', () => {
     const { id, ship: created } = addBasic({
       name: 'Lassie',
       supplies: { grub: 2, grog: 2, gear: 2 },
     })
     created.hp.current = 8
+    // Reset the per-ship dirty stamp so we can assert the shore-leave
+    // commit advances it. addBasic() ran addShip(), which already
+    // stamped the ship via commit()'s auto-stamp.
+    created.lastModifiedAt = null
 
     const baseline = undoableCount()
     applyShoreLeave([id], { hull: 5, grub: 3, grog: 1 }, {}, 'Tortuga')
@@ -922,15 +863,14 @@ describe('applyShoreLeave (v0.9)', () => {
     expect(ship.supplies.grog).toBe(3)
     expect(ship.supplies.gear).toBe(2)
     expect(undoableCount()).toBe(baseline + 1)
+    // v1.0.4: per-ship narrative entries were retired; the dirty pill
+    // now relies on `lastModifiedAt` advancing inside the same commit.
+    expect(typeof ship.lastModifiedAt).toBe('string')
 
     const workspaceLog = recentActions(1)[0]
     expect(workspaceLog.kind).toBe('workspace.shore-leave')
     expect(workspaceLog.summary).toBe('Shore leave on Lassie (Tortuga).')
     expect(workspaceLog.shipId).toBeNull()
-
-    const shipLog = lastShipLog(id)
-    expect(shipLog?.kind).toBe('ship.shore-leave')
-    expect(shipLog?.summary).toBe('Shore leave on Lassie (Tortuga): +5 hull, +3 grub, +1 grog.')
   })
 
   it('formats the workspace summary by ship-count threshold (≤3 names, 4+ count)', () => {
@@ -967,8 +907,6 @@ describe('applyShoreLeave (v0.9)', () => {
     applyShoreLeave([a, b], { hull: 30 })
     expect(workspace.ships[a].hp.current).toBe(20)
     expect(workspace.ships[b].hp.current).toBe(60)
-    expect(lastShipLog(a)?.summary).toBe('Shore leave on Lassie: +2 hull.')
-    expect(lastShipLog(b)?.summary).toBe('Shore leave on Black Pearl: +20 hull.')
   })
 
   it('adds supplies without an upper bound (additive, not capped)', () => {
@@ -990,11 +928,6 @@ describe('applyShoreLeave (v0.9)', () => {
     applyShoreLeave([a, b], { hull: 1 }, { clearSceneConditions: true })
     expect(workspace.scene.shipConditions[a]).toBeUndefined()
     expect(workspace.scene.shipConditions[b]).toBeUndefined()
-    expect(lastShipLog(a)?.summary).toBe(
-      'Shore leave on Lassie: +1 hull; cleared scene conditions.',
-    )
-    // Ship b had no hull headroom, but the scene-clear alone is still meaningful.
-    expect(lastShipLog(b)?.summary).toBe('Shore leave on Black Pearl: cleared scene conditions.')
   })
 
   it('skips ships with nothing meaningful to apply (full HP, no clear, supplies-zero) but still commits for the rest', () => {
@@ -1002,18 +935,17 @@ describe('applyShoreLeave (v0.9)', () => {
     const b = addShip({ name: 'Black Pearl' })
     // a is at full HP and has no scene conditions; with hull-only deltas it's a no-op for a.
     workspace.ships[b].hp.current = workspace.ships[b].hp.max - 5
+    // Reset both stamps so we can isolate the shore-leave's effect.
+    workspace.ships[a].lastModifiedAt = null
+    workspace.ships[b].lastModifiedAt = null
 
     const baseline = undoableCount()
-    // Ship a already has a `ship.add` log entry from addShip(); track its
-    // count so we can assert no shore-leave entry was appended on top.
-    const aLogCountBefore = workspace.ships[a].sessionHistory[0].actions.length
-    const bLogCountBefore = workspace.ships[b].sessionHistory[0].actions.length
     applyShoreLeave([a, b], { hull: 5 })
     expect(undoableCount()).toBe(baseline + 1)
-    // No new log entry on a; one new shore-leave entry on b.
-    expect(workspace.ships[a].sessionHistory[0].actions.length).toBe(aLogCountBefore)
-    expect(workspace.ships[b].sessionHistory[0].actions.length).toBe(bLogCountBefore + 1)
-    expect(lastShipLog(b)?.summary).toBe('Shore leave on Black Pearl: +5 hull.')
+    // v1.0.4: dirty stamp tracks who was actually touched. Ship a was
+    // skipped (full HP), so its stamp stays null; b advances.
+    expect(workspace.ships[a].lastModifiedAt).toBeNull()
+    expect(typeof workspace.ships[b].lastModifiedAt).toBe('string')
     // Workspace summary only mentions b
     expect(recentActions(1)[0].summary).toBe('Shore leave on Black Pearl.')
   })
@@ -1067,11 +999,11 @@ describe('applyShoreLeave (v0.9)', () => {
     const { id } = addBasic({ name: 'Lassie', supplies: { grub: 0, grog: 0, gear: 0 } })
     applyShoreLeave([id], { grub: 2 })
     expect(recentActions(1)[0].summary).toBe('Shore leave on Lassie.')
-    expect(lastShipLog(id)?.summary).toBe('Shore leave on Lassie: +2 grub.')
+    expect(workspace.ships[id].supplies.grub).toBe(2)
 
     applyShoreLeave([id], { grog: 1 }, {}, '   ')
     expect(recentActions(1)[0].summary).toBe('Shore leave on Lassie.')
-    expect(lastShipLog(id)?.summary).toBe('Shore leave on Lassie: +1 grog.')
+    expect(workspace.ships[id].supplies.grog).toBe(1)
   })
 
   it('coerces negative / fractional / non-numeric inputs to safe magnitudes', () => {
@@ -1088,7 +1020,6 @@ describe('applyShoreLeave (v0.9)', () => {
     })
     expect(workspace.ships[id].supplies.grub).toBe(2)
     expect(workspace.ships[id].supplies.gear).toBe(1)
-    expect(lastShipLog(id)?.summary).toBe('Shore leave on Lassie: +2 grub, +1 gear.')
   })
 
   it('handles empty / non-array / unknown-only inputs without throwing or committing', () => {
@@ -1332,133 +1263,6 @@ describe('flag mutators (v0.5)', () => {
   })
 })
 
-describe("captain's log narrative mutators (v0.5)", () => {
-  /**
-   * Adding a ship triggers `appendShipLog` once for the addShip action, which
-   * seeds the first SessionEntry. Use that as the starting point for journal
-   * tests instead of constructing one by hand.
-   */
-  function shipWithFreshSession(overrides = {}) {
-    const { id } = addBasic(overrides)
-    const ship = workspace.ships[id]
-    const entry = ship.sessionHistory[ship.sessionHistory.length - 1]
-    return { id, entryId: entry.id }
-  }
-
-  it('setSessionEntryFields commits title and narrative changes through the log', () => {
-    const { id, entryId } = shipWithFreshSession({ name: 'Wavecutter' })
-    setSessionEntryFields(id, entryId, {
-      title: 'The Storm Run',
-      narrative: 'Took her south of the cape.',
-    })
-
-    const entry = workspace.ships[id].sessionHistory.find((e) => e.id === entryId)
-    expect(entry.title).toBe('The Storm Run')
-    expect(entry.narrative).toBe('Took her south of the cape.')
-    const summary = recentActions(1)[0].summary
-    expect(summary).toMatch(/Wavecutter/)
-    expect(summary).toMatch(/title/)
-    expect(summary).toMatch(/narrative/)
-  })
-
-  it('setSessionEntryFields trims titles and snaps blank ones back to "Session"', () => {
-    const { id, entryId } = shipWithFreshSession()
-    setSessionEntryFields(id, entryId, { title: '   Patrol  ' })
-    expect(workspace.ships[id].sessionHistory.find((e) => e.id === entryId).title).toBe('Patrol')
-
-    setSessionEntryFields(id, entryId, { title: '   ' })
-    expect(workspace.ships[id].sessionHistory.find((e) => e.id === entryId).title).toBe('Session')
-  })
-
-  it('setSessionEntryFields no-ops on unchanged values', () => {
-    const { id, entryId } = shipWithFreshSession()
-    setSessionEntryFields(id, entryId, { title: 'Patrol', narrative: 'Calm waters.' })
-    const baseline = undoableCount()
-    setSessionEntryFields(id, entryId, { title: 'Patrol', narrative: 'Calm waters.' })
-    expect(undoableCount()).toBe(baseline)
-  })
-
-  it('setSessionEntryFields no-ops when the entry id is unknown', () => {
-    const { id } = shipWithFreshSession()
-    const baseline = undoableCount()
-    setSessionEntryFields(id, 'nonexistent-id', { title: 'X' })
-    expect(undoableCount()).toBe(baseline)
-  })
-
-  it('setSessionEntryFields can edit a closed past session, not just the current one', () => {
-    const { id, entryId } = shipWithFreshSession()
-    closeCurrentSession(id, { title: 'Chapter One' })
-    setSessionEntryFields(id, entryId, { narrative: 'Postscript: written later.' })
-
-    const entry = workspace.ships[id].sessionHistory.find((e) => e.id === entryId)
-    expect(entry.endedAt).not.toBeNull()
-    expect(entry.narrative).toBe('Postscript: written later.')
-  })
-
-  it('closeCurrentSession marks endedAt and starts a new session on the next auto-log', () => {
-    const { id } = shipWithFreshSession({ name: 'Wavecutter' })
-    closeCurrentSession(id, { title: 'Chapter One', narrative: 'We made it home.' })
-
-    const history = workspace.ships[id].sessionHistory
-    // The close itself logs an action, which the auto-logger places in a fresh
-    // SessionEntry because the previous one is now closed.
-    expect(history.length).toBeGreaterThanOrEqual(2)
-    const closed = history.find((e) => e.title === 'Chapter One')
-    expect(closed.endedAt).not.toBeNull()
-    expect(closed.narrative).toBe('We made it home.')
-
-    const open = history[history.length - 1]
-    expect(open.endedAt).toBeNull()
-    expect(open.actions[0].kind).toBe('session.close')
-  })
-
-  it('closeCurrentSession is defensively a no-op when there is no session history', () => {
-    const { id } = shipWithFreshSession()
-    // Force the empty-history edge case directly. In normal flow this can't
-    // happen because the auto-logger seeds a fresh open session after every
-    // close, but the guard exists so an externally-cleared history doesn't
-    // crash the close button.
-    workspace.ships[id].sessionHistory.length = 0
-    const baseline = undoableCount()
-    closeCurrentSession(id)
-    expect(undoableCount()).toBe(baseline)
-  })
-
-  it('closeCurrentSession naturally chains: each close lands in the auto-seeded next open session', () => {
-    const { id } = shipWithFreshSession()
-    closeCurrentSession(id, { title: 'Chapter One' })
-    closeCurrentSession(id, { title: 'Chapter Two' })
-
-    const titles = workspace.ships[id].sessionHistory.map((e) => e.title)
-    expect(titles).toEqual(expect.arrayContaining(['Chapter One', 'Chapter Two']))
-    // Most recent is the open session created by the second close's log line.
-    const open = workspace.ships[id].sessionHistory[workspace.ships[id].sessionHistory.length - 1]
-    expect(open.endedAt).toBeNull()
-  })
-
-  it('closeCurrentSession with no patch keeps the existing title and narrative', () => {
-    const { id, entryId } = shipWithFreshSession()
-    setSessionEntryFields(id, entryId, { title: 'Patrol', narrative: 'Calm.' })
-    closeCurrentSession(id)
-
-    const entry = workspace.ships[id].sessionHistory.find((e) => e.id === entryId)
-    expect(entry.title).toBe('Patrol')
-    expect(entry.narrative).toBe('Calm.')
-    expect(entry.endedAt).not.toBeNull()
-  })
-
-  it('undo of closeCurrentSession reopens the session and reverts patch fields', () => {
-    const { id, entryId } = shipWithFreshSession()
-    setSessionEntryFields(id, entryId, { title: 'Patrol', narrative: 'Calm.' })
-    closeCurrentSession(id, { narrative: 'Calm — finalized.' })
-    undo()
-
-    const entry = workspace.ships[id].sessionHistory.find((e) => e.id === entryId)
-    expect(entry.endedAt).toBeNull()
-    expect(entry.narrative).toBe('Calm.')
-  })
-})
-
 describe('ship condition mutators (v0.6)', () => {
   it('setShipPersistentCondition adds and removes ids from ship.conditions', () => {
     const { id } = addBasic({ name: 'Wavecutter' })
@@ -1625,79 +1429,6 @@ describe('officer notes (v0.7)', () => {
   })
 })
 
-describe('session metadata (v0.7)', () => {
-  function shipWithFreshSession(overrides = {}) {
-    const { id } = addBasic(overrides)
-    const ship = workspace.ships[id]
-    const entry = ship.sessionHistory[ship.sessionHistory.length - 1]
-    return { id, entryId: entry.id }
-  }
-
-  it('setSessionEntryFields stores sessionDate / location / encounterName when patched', () => {
-    const { id, entryId } = shipWithFreshSession({ name: 'Wavecutter' })
-    setSessionEntryFields(id, entryId, {
-      sessionDate: 'Saturday, March 14',
-      location: 'Cracked Tooth Bay',
-      encounterName: 'Raid on the Black Spear',
-    })
-
-    const entry = workspace.ships[id].sessionHistory.find((e) => e.id === entryId)
-    expect(entry.sessionDate).toBe('Saturday, March 14')
-    expect(entry.location).toBe('Cracked Tooth Bay')
-    expect(entry.encounterName).toBe('Raid on the Black Spear')
-    const summary = recentActions(1)[0].summary
-    expect(summary).toMatch(/played/)
-    expect(summary).toMatch(/location/)
-    expect(summary).toMatch(/encounter/)
-  })
-
-  it('setSessionEntryFields no-ops when none of the meta values changed', () => {
-    const { id, entryId } = shipWithFreshSession()
-    setSessionEntryFields(id, entryId, { location: 'Cracked Tooth Bay' })
-    const baseline = undoableCount()
-    setSessionEntryFields(id, entryId, { location: 'Cracked Tooth Bay' })
-    expect(undoableCount()).toBe(baseline)
-  })
-
-  it('setSessionEntryFields can mix narrative + meta in one commit', () => {
-    const { id, entryId } = shipWithFreshSession()
-    setSessionEntryFields(id, entryId, {
-      narrative: 'Set sail at dawn.',
-      location: 'Port Skerry',
-    })
-    const entry = workspace.ships[id].sessionHistory.find((e) => e.id === entryId)
-    expect(entry.narrative).toBe('Set sail at dawn.')
-    expect(entry.location).toBe('Port Skerry')
-    const summary = recentActions(1)[0].summary
-    expect(summary).toMatch(/narrative/)
-    expect(summary).toMatch(/location/)
-  })
-
-  it('setSessionEntryFields meta survives undo / redo', () => {
-    const { id, entryId } = shipWithFreshSession()
-    setSessionEntryFields(id, entryId, { location: 'Port Skerry' })
-    setSessionEntryFields(id, entryId, { location: 'Cracked Tooth Bay' })
-    undo()
-    expect(workspace.ships[id].sessionHistory.find((e) => e.id === entryId).location).toBe(
-      'Port Skerry',
-    )
-    redo()
-    expect(workspace.ships[id].sessionHistory.find((e) => e.id === entryId).location).toBe(
-      'Cracked Tooth Bay',
-    )
-  })
-
-  it('setSessionEntryFields meta works on closed past sessions too', () => {
-    const { id, entryId } = shipWithFreshSession()
-    closeCurrentSession(id, { title: 'Chapter One' })
-    setSessionEntryFields(id, entryId, { encounterName: 'The Storm Run (postscript)' })
-
-    const entry = workspace.ships[id].sessionHistory.find((e) => e.id === entryId)
-    expect(entry.endedAt).not.toBeNull()
-    expect(entry.encounterName).toBe('The Storm Run (postscript)')
-  })
-})
-
 describe('endScene (v0.7)', () => {
   it('is a no-op on a fresh idle workspace', () => {
     const baseline = undoableCount()
@@ -1765,7 +1496,10 @@ describe('endScene (v0.7)', () => {
     expect(ship.crew.current).toBe(3)
     expect(ship.supplies).toMatchObject({ grub: 4, grog: 1, gear: 2 })
     expect(ship.conditions).toContain('listing')
-    expect(ship.sessionHistory.length).toBeGreaterThan(0)
+    // v1.0.4: every commit through this test stamps `lastModifiedAt` on
+    // the player ship, so the post-endScene state should still reflect a
+    // dirty hull (the previous "sessionHistory has entries" assertion).
+    expect(typeof ship.lastModifiedAt).toBe('string')
   })
 
   it('does not clear persistent ship conditions on the player ship', () => {
@@ -1949,19 +1683,18 @@ describe('sail-order mutators (v0.9)', () => {
       expect(undoableCount()).toBe(baseline)
     })
 
-    it('appends to the moved ship session log', () => {
+    it('advances the moved ship\u2019s dirty stamp', () => {
       const { b } = chartetThree()
-      const sessions = workspace.ships[b].sessionHistory
-      const currentSession = sessions[sessions.length - 1]
-      const before = currentSession.actions.length
+      // Reset the stamp so the test isolates the move itself, not the
+      // earlier addShip commits.
+      workspace.ships[b].lastModifiedAt = null
 
       moveShipUp(b)
 
-      const after = currentSession.actions.length
-      expect(after).toBe(before + 1)
-      expect(currentSession.actions[after - 1].summary).toBe(
-        'Sailed Black Pearl ahead of Lassie.',
-      )
+      // v1.0.4: per-ship narrative logs were retired. The dirty pill now
+      // tracks `lastModifiedAt`; every shipId-tagged commit (which a
+      // reorder is) advances it.
+      expect(typeof workspace.ships[b].lastModifiedAt).toBe('string')
     })
 
     it('survives undo / redo round trip', () => {
@@ -2081,15 +1814,13 @@ describe('applyFlagToShips (v0.9)', () => {
     expect(cFlag.reputation).toEqual(expectedRep)
   })
 
-  it('produces a single workspace-level commit and per-ship log entries', () => {
+  it('produces a single workspace-level commit and stamps each target ship dirty', () => {
     const { sourceId, flagId, targets } = setupFleet({ targetCount: 2 })
     const [b, c] = targets
     const baseline = undoableCount()
-
-    const bSession = workspace.ships[b].sessionHistory
-    const cSession = workspace.ships[c].sessionHistory
-    const bBefore = bSession[bSession.length - 1].actions.length
-    const cBefore = cSession[cSession.length - 1].actions.length
+    // Reset the dirty stamps on the targets so we can isolate this commit.
+    workspace.ships[b].lastModifiedAt = null
+    workspace.ships[c].lastModifiedAt = null
 
     applyFlagToShips(sourceId, flagId, [b, c])
 
@@ -2099,12 +1830,10 @@ describe('applyFlagToShips (v0.9)', () => {
       'Copied flag The Black Spear from Lassie to Black Pearl, Interceptor.',
     )
 
-    const bAfter = bSession[bSession.length - 1].actions.length
-    const cAfter = cSession[cSession.length - 1].actions.length
-    expect(bAfter).toBe(bBefore + 1)
-    expect(cAfter).toBe(cBefore + 1)
-    const bSummary = bSession[bSession.length - 1].actions[bAfter - 1].summary
-    expect(bSummary).toMatch(/flag The Black Spear on Black Pearl \(from Lassie\)/)
+    // v1.0.4: per-ship narrative entries were retired. Each target ship
+    // is marked dirty via `lastModifiedAt` instead.
+    expect(typeof workspace.ships[b].lastModifiedAt).toBe('string')
+    expect(typeof workspace.ships[c].lastModifiedAt).toBe('string')
   })
 
   it('uses the count form when applying to four or more ships', () => {
@@ -2487,7 +2216,7 @@ describe('loadBundleIntoWorkspace (v1.0)', () => {
           boardedBy: null,
           portraitImageId: null,
           playerCharacter: null,
-          sessionHistory: [],
+          lastModifiedAt: null,
           conditions: [],
         }),
         'ship-2': /** @type {import('../domain/types.js').Ship} */ ({
@@ -2517,7 +2246,7 @@ describe('loadBundleIntoWorkspace (v1.0)', () => {
           boardedBy: null,
           portraitImageId: null,
           playerCharacter: null,
-          sessionHistory: [],
+          lastModifiedAt: null,
           conditions: [],
         }),
       },

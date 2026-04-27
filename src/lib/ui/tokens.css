@@ -81,6 +81,39 @@
   }
 
   /*
+   * v1.0.4 — Pin the document to the viewport on the dashboard route.
+   * The Dashboard root is `h-dvh overflow-hidden` and the rails each
+   * manage their own internal scroll, so the document itself never
+   * has reason to scroll. The previous attempt — `overflow: hidden` on
+   * html+body — wasn't enough on its own: a ResizeObserver-driven row
+   * (the central `flex-1 min-h-0` band) could still push body height
+   * past the viewport, and a trackpad rubber-band pulled the document
+   * up to reveal a blank "void" beneath the dashboard.
+   *
+   * Pinning <body> to `fixed; inset: 0` makes the dashboard root size
+   * itself off the viewport (not the document), so wheel events from
+   * the side rails can never chain past the body and the void can
+   * never be revealed. `overscroll-behavior: contain` is belt-and-
+   * suspenders: even if a future browser supported wheel chaining
+   * past a fixed body, the chain stops here. The same lock is left
+   * off print routes — PrintView and FleetPrintView are tall single-
+   * column sheets reviewed before Cmd+P and need the document to
+   * scroll naturally. The route attribute is set by App.svelte:
+   * `dashboard` → locked, `print` → unlocked.
+   */
+  html[data-route='dashboard'] {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: contain;
+  }
+  html[data-route='dashboard'] body {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    overscroll-behavior: contain;
+  }
+
+  /*
    * Keep the page itself anchored while a modal is open.
    * Native <dialog>.showModal() only suppresses focus and basic key
    * events; trackpads and wheels can still scroll the document

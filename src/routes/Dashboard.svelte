@@ -39,6 +39,17 @@
   let autosaveState = $state(/** @type {'idle'|'saving'|'error'} */ ('idle'))
   let autosaveMeta = $state(/** @type {import('../lib/persistence/autosave.js').AutosaveMeta|null} */ (null))
 
+  /*
+   * Side-rail collapse state. Per the v1.0.4 product call (rails_persist:
+   * session_only), the collapsed state is intentionally *not* persisted —
+   * each fresh tab boots with both rails open, and any reload counts as
+   * "fresh" for the same reason. Keeping it as plain `$state` (not piped
+   * through localStorage / settings) is the implementation of that
+   * decision; if we ever change our mind, this is the single edit point.
+   */
+  let fleetRailCollapsed = $state(false)
+  let sceneRailCollapsed = $state(false)
+
   const autosaver = makeAutosaver(
     () => JSON.parse(JSON.stringify($state.snapshot(workspace))),
     {
@@ -292,15 +303,53 @@
   {/if}
 
   <div class="flex-1 flex min-h-0 overflow-x-auto">
-    <LoadedShipsRail />
+    {#if fleetRailCollapsed}
+      <button
+        type="button"
+        class="surface-rail w-9 shrink-0 flex flex-col items-center gap-2 py-3 text-ink-500 hover:bg-surface-100 hover:text-ink-800 border-r border-surface-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brass-500"
+        onclick={() => (fleetRailCollapsed = false)}
+        aria-label="Expand fleet rail"
+        aria-expanded="false"
+        title="Expand fleet"
+      >
+        <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+          <path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span class="display text-[10px] uppercase tracking-wider [writing-mode:vertical-rl] rotate-180">
+          Fleet
+        </span>
+      </button>
+    {:else}
+      <LoadedShipsRail oncollapse={() => (fleetRailCollapsed = true)} />
+    {/if}
+
     <ShipDetail />
-    <aside
-      class="surface-rail-right w-80 shrink-0 flex flex-col min-h-0"
-      aria-label="Scene and log"
-    >
-      <ScenePanel />
-      <ActivityLog />
-    </aside>
+
+    {#if sceneRailCollapsed}
+      <button
+        type="button"
+        class="surface-rail-right w-9 shrink-0 flex flex-col items-center gap-2 py-3 text-ink-500 hover:bg-surface-100 hover:text-ink-800 border-l border-surface-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brass-500"
+        onclick={() => (sceneRailCollapsed = false)}
+        aria-label="Expand scene & log rail"
+        aria-expanded="false"
+        title="Expand scene & log"
+      >
+        <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+          <path d="M8 2L4 6l4 4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span class="display text-[10px] uppercase tracking-wider [writing-mode:vertical-rl] rotate-180">
+          Scene &amp; Log
+        </span>
+      </button>
+    {:else}
+      <aside
+        class="surface-rail-right w-80 shrink-0 flex flex-col min-h-0"
+        aria-label="Scene and log"
+      >
+        <ScenePanel oncollapse={() => (sceneRailCollapsed = true)} />
+        <ActivityLog />
+      </aside>
+    {/if}
   </div>
 </div>
 

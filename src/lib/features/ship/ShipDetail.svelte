@@ -17,9 +17,7 @@
   import ConditionsSection from './ConditionsSection.svelte'
   import OfficerRoster from './OfficerRoster.svelte'
   import SuppliesSection from './SuppliesSection.svelte'
-  import PlayerCharacterSection from './PlayerCharacterSection.svelte'
   import FlagsSection from './FlagsSection.svelte'
-  import JournalSection from './JournalSection.svelte'
   import { workspace, removeShip, setShipBoardedBy } from '../../state/workspace.svelte.js'
   import { openDialog } from '../../state/ui.svelte.js'
   import {
@@ -129,7 +127,7 @@
 </script>
 
 <section
-  class="flex-1 min-w-[22rem] overflow-y-auto overflow-x-hidden"
+  class="flex-1 min-w-[22rem] overflow-y-auto overflow-x-hidden overscroll-contain"
   aria-label="Ship detail"
 >
   {#if !ship}
@@ -174,9 +172,9 @@
             <p class="text-sm text-ink-500 mt-0.5 break-words">
               {ship.type || 'Unknown type'} · {SHIP_SIZE_LABELS[ship.size] ?? ship.size} · {MOBILITY_LABELS[ship.mobility] ?? ship.mobility} mobility
             </p>
-            {#if ship.playerCharacter}
+            {#if ship.officers.captain.name}
               <p class="text-sm text-brass-700 mt-1 break-words">
-                Captained by <span class="font-medium">{ship.playerCharacter.characterName}</span>
+                Captained by <span class="font-medium">{ship.officers.captain.name}</span>
               </p>
             {/if}
             {#if savedAt}
@@ -316,11 +314,7 @@
 
       <OfficerRoster {ship} />
 
-      <PlayerCharacterSection {ship} />
-
       <FlagsSection {ship} />
-
-      <JournalSection {ship} />
     </div>
   {/if}
 </section>

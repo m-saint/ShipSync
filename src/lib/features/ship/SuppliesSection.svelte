@@ -70,6 +70,7 @@
             max={cap}
             step={1}
             {tone}
+            fullWidth
             onchange={(v) => setShipSupplies(ship.id, { [track.key]: v })}
           />
         </Field>

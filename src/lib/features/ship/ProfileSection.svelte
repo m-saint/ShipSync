@@ -12,6 +12,7 @@
   import ImageUpload from '../../ui/ImageUpload.svelte'
   import Button from '../../ui/Button.svelte'
   import RuleTooltip from '../../ui/RuleTooltip.svelte'
+  import WeaponMountList from './WeaponMountList.svelte'
   import {
     setShipName,
     setShipType,
@@ -54,7 +55,7 @@
   const SPEED_HINT =
     'Knots is the in-fiction speed; squares is how far she moves on the play surface this round.'
   const WEAPONS_HINT =
-    'Cannons mounted on each side. Heavy-weapons eligibility unlocks the larger gun classes — toggle off if your ship rejects them.'
+    'Each side lists the actual mounts (and how many slots they occupy). The slot total above each list is the sum of those mounts. Heavy-weapons eligibility unlocks the larger gun classes — toggle off if your ship rejects them.'
 </script>
 
 <section class="surface-card p-4 sm:p-5 flex flex-col gap-4">
@@ -174,19 +175,22 @@
 
     <div class="sm:col-span-2">
       <RuleTooltip hint={WEAPONS_HINT} display="block">
-        <Field label="Weapon slots">
-          <div class="grid grid-cols-2 gap-2">
+        <Field label="Weapon slots & mounts">
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
             {#each [{ key: 'bow', label: 'Bow' }, { key: 'port', label: 'Port' }, { key: 'starboard', label: 'Starboard' }, { key: 'stern', label: 'Stern' }] as slot (slot.key)}
-              <div class="flex flex-col items-stretch gap-1.5 px-2 py-2 rounded-md border border-surface-300 bg-surface-50">
-                <span class="text-[10px] uppercase tracking-wide text-ink-500">{slot.label}</span>
-                <NumberStepper
-                  ariaLabel={`${slot.label} weapons`}
-                  value={ship.weapons[slot.key]}
-                  min={0}
-                  max={99}
-                  step={1}
-                  onchange={(v) => setShipWeapons(ship.id, { [slot.key]: v })}
-                />
+              <div class="flex flex-col gap-1.5 px-3 py-2.5 rounded-md border border-surface-300 bg-surface-50">
+                <div class="flex items-center justify-between gap-2">
+                  <span class="text-[10px] uppercase tracking-wide text-ink-500">{slot.label}</span>
+                  <NumberStepper
+                    ariaLabel={`${slot.label} slot capacity`}
+                    value={ship.weapons[slot.key]}
+                    min={0}
+                    max={99}
+                    step={1}
+                    onchange={(v) => setShipWeapons(ship.id, { [slot.key]: v })}
+                  />
+                </div>
+                <WeaponMountList {ship} side={slot.key} label={slot.label} />
               </div>
             {/each}
           </div>

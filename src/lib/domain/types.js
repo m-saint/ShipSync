@@ -111,6 +111,35 @@
  */
 
 /**
+ * One weapon mount in a side's slot bank. v1.0.4 — tracks *what* is sitting
+ * in each slot, not just the count. The `slotsOccupied` field lets a single
+ * heavy piece (e.g. a large cannon) eat multiple slots without forcing a
+ * separate row per slot.
+ *
+ * The slot-count stepper in `WeaponSlots` is auto-derived from the sum of
+ * `slotsOccupied` across each side's mounts; the user only edits the list.
+ *
+ * @typedef {Object} WeaponMount
+ * @property {string} id                    // stable id; assigned at creation
+ * @property {string} name                  // free-text (e.g. "Ballista", "Falconet", "Large cannon")
+ * @property {number} slotsOccupied         // ≥ 1 — how many of this side's slots this piece eats
+ */
+
+/**
+ * Per-side inventory of mounts. Sides match `WeaponSlots`. Missing or
+ * malformed sides default to an empty array on load — see
+ * `loadFile.js#repairShip`. Mounts are user-ordered (no fixed sort) so a
+ * captain can reflect physical placement (e.g. "forward starboard ballista,
+ * aft starboard falconet").
+ *
+ * @typedef {Object} WeaponInventory
+ * @property {WeaponMount[]} bow
+ * @property {WeaponMount[]} port
+ * @property {WeaponMount[]} starboard
+ * @property {WeaponMount[]} stern
+ */
+
+/**
  * @typedef {Object} Supplies
  * @property {number} grub        // §2 food/water
  * @property {number} grog        // §2 alcohol
@@ -150,6 +179,7 @@
  * @property {{ current: number, max: number }} hp
  * @property {number} explosionDC
  * @property {WeaponSlots} weapons
+ * @property {WeaponInventory} weaponInventory
  * @property {Supplies} supplies
  * @property {Resources} resources
  * @property {Crew} crew
@@ -160,8 +190,8 @@
  * @property {number} fires
  * @property {string|null} boardedBy        // §6.2 free-text name of a boarding partner; null when not locked together
  * @property {string|null} portraitImageId
- * @property {PlayerCharacter|null} playerCharacter
- * @property {SessionEntry[]} sessionHistory
+ * @property {PlayerCharacter|null} [playerCharacter]   // legacy v1.0 field — folded into officers.captain by `migrateLegacyPlayerCharacter` on load. Optional so new ships don't carry it.
+ * @property {string|null} lastModifiedAt              // v1.0.4 — ISO of the most recent in-workspace mutation. Drives the "unsaved" indicator. Replaces the per-ship `sessionHistory` field.
  * @property {PersistentShipCondition[]} conditions     // §6 persistent state: listing, surrendered. Rides along in saved ship file.
  */
 
@@ -224,18 +254,15 @@
  * @property {string|null} shipId                     // null for scene-level events fanned out
  */
 
-/**
- * @typedef {Object} SessionEntry
- * @property {string} id
- * @property {string|null} workspaceSessionId         // optional cross-ship session correlation
- * @property {string} startedAt
- * @property {string|null} endedAt
- * @property {string} title
- * @property {string} narrative
- * @property {LogAction[]} actions
- * @property {string} sessionDate         // §0 v0.7 — free-text date the session was played at the table. Empty when absent. Often differs from startedAt's wall clock.
- * @property {string} location            // §0 v0.7 — free-text in-fiction location (e.g. "Cracked Tooth Bay", "off the coast of Port Skerry"). Empty when absent.
- * @property {string} encounterName       // §0 v0.7 — free-text encounter name (e.g. "raid on the Black Spear flotilla"). Empty when absent.
+/*
+ * The v0.5–v1.0.3 `SessionEntry` typedef lived here. v1.0.4 retired the
+ * Captain's-Log-as-narrative feature: the global Activity Log is now the
+ * single chronological surface, renamed to "Captain's Log" in the right
+ * rail. Per-ship "unsaved" state is tracked by `Ship.lastModifiedAt`.
+ *
+ * Loading a save written by v1.0.3 or earlier still works — see
+ * `migrateLegacySessionHistory` in loadFile.js, which folds the max action
+ * timestamp into `lastModifiedAt` and drops the rest of the entry.
  */
 
 /**
@@ -263,7 +290,6 @@
  * @property {ImageStore} images
  * @property {string|null} focusedShipId
  * @property {Record<string, string>} lastSavedAtByShipId   // ISO timestamps per ship id
- * @property {string|null} workspaceSessionId  // current session id, if a session is open
  */
 
 /**

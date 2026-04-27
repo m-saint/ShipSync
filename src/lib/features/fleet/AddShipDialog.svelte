@@ -3,7 +3,6 @@
   import Button from '../../ui/Button.svelte'
   import Field from '../../ui/Field.svelte'
   import NumberStepper from '../../ui/NumberStepper.svelte'
-  import ImageUpload from '../../ui/ImageUpload.svelte'
   import { ui, closeDialog, pushToast } from '../../state/ui.svelte.js'
   import { workspace, addShip } from '../../state/workspace.svelte.js'
   import { settings } from '../../state/settings.svelte.js'
@@ -19,10 +18,9 @@
     defaultHpMaxFor,
     defaultMobilityFor,
     isHeavyWeaponEligible,
-    makeId,
+    makeEmptyOfficers,
     shipTypeProfileFor,
     skeletonCrewFor,
-    sumImageBytes,
   } from '../../domain/derivations.js'
 
   let open = $derived(ui.openDialog === 'add-ship')
@@ -71,10 +69,11 @@
       crewMax: defaultCrewMaxFor('medium'),
       crewMaxIsCustom: false,
       mobilityIsCustom: false,
-      isPlayerShip: false,
-      characterName: '',
-      characterTraits: '',
-      portraitDataUrl: /** @type {string|null} */ (null),
+      // v1.0.4: Captain ≡ Player Character. The dialog seeds a captain
+      // name (optional), and the captain officer card on the ship detail
+      // owns rank, status, portrait, and notes. There is no separate
+      // "player character" extension to enable anymore.
+      captainName: '',
       // Per-charter override for the carry-forward affordance. Defaults
       // to true so the global toggle's intent is respected unless the
       // captain explicitly opts out for this particular charter.
@@ -124,14 +123,6 @@
     // verbatim because some types round in unexpected directions.
     const skeleton = typeProfile?.crewSkeleton ?? skeletonCrewFor(form.crewMax)
 
-    let portraitImageId = null
-    /** @type {Record<string,string>} */
-    const newImages = {}
-    if (form.portraitDataUrl) {
-      portraitImageId = `img-${makeId()}`
-      newImages[portraitImageId] = form.portraitDataUrl
-    }
-
     const willCarryOver = canShowCarryOver && form.carryOver && donorShip !== null
 
     /**
@@ -142,15 +133,36 @@
      * record of three numbers, so structuredClone would be overkill).
      *
      * The carry-forward intentionally does NOT touch hp, crew, mettle,
-     * flags, or the player-character block — those are charter-time
-     * decisions controlled by the form fields above.
+     * or flags — those are charter-time decisions controlled by the form
+     * fields above.
+     *
+     * v1.0.4: when the captain seeds a name in the form, we layer it
+     * onto whichever officers block we end up with — either the carry-
+     * forward clone, or a fresh empty bridge — so the new ship's captain
+     * card lands populated without an extra trip through the officer
+     * roster.
      */
-    const carryOverOverrides = willCarryOver
-      ? {
-          officers: structuredClone($state.snapshot(donorShip.officers)),
-          supplies: { ...donorShip.supplies },
-        }
-      : {}
+    /** @type {Record<string, unknown>} */
+    const overrides = {}
+    if (willCarryOver) {
+      overrides.officers = structuredClone($state.snapshot(donorShip.officers))
+      overrides.supplies = { ...donorShip.supplies }
+    }
+    const captainName = form.captainName.trim()
+    if (captainName.length > 0) {
+      // Preserve any donor-carried captain rank / status / notes /
+      // portrait — only the name is the captain's prerogative on a new
+      // charter. (The full carry-forward is "her bridge", but the
+      // person on top of the bridge is the player.) When there's no
+      // carry-forward, seed a fresh empty roster so the other stations
+      // aren't dropped to undefined by the partial overlay.
+      const officers =
+        /** @type {import('../../domain/types.js').OfficerStations} */ (
+          overrides.officers ?? makeEmptyOfficers()
+        )
+      officers.captain = { ...officers.captain, name: captainName }
+      overrides.officers = officers
+    }
 
     const id = addShip({
       name: form.name.trim(),
@@ -168,19 +180,8 @@
       },
       crew: { current: form.crewMax, max: form.crewMax, skeleton },
       portraitImageId: null,
-      playerCharacter: form.isPlayerShip
-        ? {
-            characterName: form.characterName.trim() || form.name.trim(),
-            traits: form.characterTraits.trim(),
-            portraitImageId,
-          }
-        : null,
-      ...carryOverOverrides,
+      ...overrides,
     })
-
-    if (form.isPlayerShip && portraitImageId && form.portraitDataUrl) {
-      workspace.images[portraitImageId] = form.portraitDataUrl
-    }
 
     const carryOverNote = willCarryOver
       ? ` · Carried forward ${donorShip.name}'s bridge crew & supplies`
@@ -200,7 +201,7 @@
 <Dialog
   bind:open
   title="Charter a vessel"
-  description="Name her, set her bones, and decide whether your character mans the helm."
+  description="Name her, set her bones, and seed the captain on the bridge."
   onClose={close}
   size="lg"
 >
@@ -375,51 +376,22 @@
     {/if}
 
     <div class="sm:col-span-2 mt-2 pt-4 border-t border-surface-200">
-      <label class="inline-flex items-center gap-2 text-sm font-medium text-ink-700">
-        <input type="checkbox" bind:checked={form.isPlayerShip} class="h-4 w-4 rounded border-surface-400" />
-        This is my character's ship
-      </label>
-      <p class="text-xs text-ink-500 mt-1">
-        Pulls up extra fields for the player character. Non-player-owned ships skip this.
-      </p>
-    </div>
-
-    {#if form.isPlayerShip}
-      <Field label="Character name" htmlFor="add-ship-pc-name" helpText="Defaults to ship name if left blank.">
+      <Field
+        label="Captain"
+        htmlFor="add-ship-captain-name"
+        helpText="Optional — your character's name (or whoever's on the bridge). Skip it for an unmanned hull and edit later from the captain card."
+      >
         <input
-          id="add-ship-pc-name"
+          id="add-ship-captain-name"
           type="text"
           class="w-full h-10 px-3 rounded-md border border-surface-300 bg-surface-50 text-sm"
-          bind:value={form.characterName}
+          bind:value={form.captainName}
           autocomplete="off"
           maxlength="80"
+          placeholder="Eira Thorne"
         />
       </Field>
-
-      <Field label="Character portrait" htmlFor="add-ship-pc-portrait" helpText="A face for your captain. The ship's own portrait can be added afterward.">
-        <div class="flex items-center gap-3">
-          {#if form.portraitDataUrl}
-            <img src={form.portraitDataUrl} alt="" class="w-14 h-14 rounded-md object-cover border border-surface-300" />
-          {/if}
-          <ImageUpload
-            label={form.portraitDataUrl ? 'Replace portrait' : 'Upload portrait'}
-            existingTotalBytes={sumImageBytes(workspace.images)}
-            onchange={(payload) => (form.portraitDataUrl = payload.dataUrl)}
-          />
-        </div>
-      </Field>
-
-      <div class="sm:col-span-2">
-        <Field label="Traits" htmlFor="add-ship-pc-traits" helpText="Free-text bio for your character.">
-          <textarea
-            id="add-ship-pc-traits"
-            rows="3"
-            class="w-full px-3 py-2 rounded-md border border-surface-300 bg-surface-50 text-sm resize-y"
-            bind:value={form.characterTraits}
-          ></textarea>
-        </Field>
-      </div>
-    {/if}
+    </div>
   </form>
 
   {#snippet footer()}

@@ -60,6 +60,20 @@
     if (typeof document === 'undefined') return
     document.documentElement.dataset.density = settings.density
   })
+
+  /*
+   * Tag the document root with the active route so global CSS can
+   * conditionally lock the body scroll. The dashboard is a fixed
+   * viewport-tall surface (rails own their own scroll containers),
+   * so the document itself should never scroll. Print routes are
+   * intentionally tall and need the document to scroll for review
+   * before Cmd+P, so they get a different tag and skip the lock.
+   * See the `html[data-route='dashboard']` rules in tokens.css.
+   */
+  $effect(() => {
+    if (typeof document === 'undefined') return
+    document.documentElement.dataset.route = printTarget ? 'print' : 'dashboard'
+  })
 </script>
 
 {#if printTarget === 'fleet'}

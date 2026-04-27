@@ -6,6 +6,13 @@
   import { openDialog } from '../../state/ui.svelte.js'
   import { NauticalCopy } from '../../domain/derivations.js'
 
+  /**
+   * @type {{
+   *   oncollapse?: () => void,
+   * }}
+   */
+  let { oncollapse = undefined } = $props()
+
   let ships = $derived(
     workspace.shipOrder.map((id) => workspace.ships[id]).filter((s) => s != null),
   )
@@ -17,10 +24,26 @@
 >
   <div class="p-3 border-b border-surface-200 flex items-center justify-between gap-2 shrink-0">
     <h2 class="display text-sm uppercase tracking-wider text-ink-500">Fleet</h2>
-    <span class="text-xs text-ink-500">{ships.length}</span>
+    <div class="flex items-center gap-2">
+      <span class="text-xs text-ink-500">{ships.length}</span>
+      {#if oncollapse}
+        <button
+          type="button"
+          class="w-6 h-6 flex items-center justify-center rounded text-ink-500 hover:bg-surface-100 hover:text-ink-800"
+          onclick={oncollapse}
+          aria-label="Collapse fleet rail"
+          aria-expanded="true"
+          title="Collapse fleet (Shift+Cmd/Ctrl+[ to toggle)"
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+            <path d="M8 2L4 6l4 4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </button>
+      {/if}
+    </div>
   </div>
 
-  <div class="flex-1 overflow-y-auto p-3 flex flex-col gap-2">
+  <div class="flex-1 overflow-y-auto overscroll-contain p-3 flex flex-col gap-2">
     {#if ships.length === 0}
       {#snippet icon()}
         <svg width="40" height="40" viewBox="0 0 24 24" aria-hidden="true">

@@ -48,11 +48,6 @@
   let portraitDataUrl = $derived(
     ship?.portraitImageId ? images[ship.portraitImageId] ?? null : null,
   )
-  let pcPortraitDataUrl = $derived(
-    ship?.playerCharacter?.portraitImageId
-      ? images[ship.playerCharacter.portraitImageId] ?? null
-      : null,
-  )
 
   let baseline = $derived(baselineMettle(ship))
   let threshold = $derived(damageThresholdFor(ship.size))
@@ -60,27 +55,11 @@
   let skeleton = $derived(isSkeletonStaffed(ship))
   let casualties = $derived(officerCasualtyTally(ship))
 
-  let activeSession = $derived(
-    ship?.sessionHistory?.find((s) => s.endedAt == null) ?? null,
-  )
-  let pastSessions = $derived(
-    (ship?.sessionHistory ?? []).filter((s) => s.endedAt != null).slice().reverse(),
-  )
   let activeFlag = $derived(
     ship?.flags?.flyingId
       ? ship.flags.flown.find((f) => f.id === ship.flags.flyingId) ?? null
       : null,
   )
-
-  function describeIso(iso) {
-    if (!iso) return null
-    return new Date(iso).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
-  }
-
-  function shortDate(iso) {
-    if (!iso) return ''
-    return new Date(iso).toLocaleDateString([], { dateStyle: 'medium' })
-  }
 
   function statusLabel(status) {
     if (status === 'stricken') return 'Stricken'
@@ -109,9 +88,9 @@
         · {SHIP_SIZE_LABELS[ship.size] ?? ship.size}
         · {MOBILITY_LABELS[ship.mobility] ?? ship.mobility} mobility
       </p>
-      {#if ship.playerCharacter}
+      {#if ship.officers.captain.name}
         <p class="text-sm text-brass-700 mt-1 break-words">
-          Captained by <span class="font-medium">{ship.playerCharacter.characterName}</span>
+          Captained by <span class="font-medium">{ship.officers.captain.name}</span>
         </p>
       {/if}
       {#if activeFlag}
@@ -199,24 +178,35 @@
     </dl>
     {#if ship.weapons}
       <div class="mt-3">
-        <div class="text-xs uppercase tracking-wide text-ink-500 mb-1">Weapon slots</div>
-        <ul class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
-          <li class="border border-ink-300 rounded px-2 py-1">
-            <span class="text-xs uppercase tracking-wide text-ink-500 mr-1">Bow</span>
-            {ship.weapons.bow}
-          </li>
-          <li class="border border-ink-300 rounded px-2 py-1">
-            <span class="text-xs uppercase tracking-wide text-ink-500 mr-1">Port</span>
-            {ship.weapons.port}
-          </li>
-          <li class="border border-ink-300 rounded px-2 py-1">
-            <span class="text-xs uppercase tracking-wide text-ink-500 mr-1">Starboard</span>
-            {ship.weapons.starboard}
-          </li>
-          <li class="border border-ink-300 rounded px-2 py-1">
-            <span class="text-xs uppercase tracking-wide text-ink-500 mr-1">Stern</span>
-            {ship.weapons.stern}
-          </li>
+        <div class="text-xs uppercase tracking-wide text-ink-500 mb-1">Weapon mounts</div>
+        <ul class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+          {#each [{ key: 'bow', label: 'Bow' }, { key: 'port', label: 'Port' }, { key: 'starboard', label: 'Starboard' }, { key: 'stern', label: 'Stern' }] as side (side.key)}
+            {@const mounts = ship.weaponInventory?.[side.key] ?? []}
+            <li class="border border-ink-300 rounded px-2 py-1.5 break-inside-avoid">
+              <div class="flex items-baseline justify-between gap-2">
+                <span class="text-xs uppercase tracking-wide text-ink-500">{side.label}</span>
+                <span class="text-xs text-ink-500">
+                  <span class="font-mono">{ship.weapons[side.key]}</span> slot{ship.weapons[side.key] === 1 ? '' : 's'}
+                </span>
+              </div>
+              {#if mounts.length > 0}
+                <ul class="mt-1 text-xs leading-snug">
+                  {#each mounts as mount (mount.id)}
+                    <li class="flex items-baseline justify-between gap-2 break-words">
+                      <span>{mount.name?.trim() ? mount.name : '— unnamed —'}</span>
+                      {#if mount.slotsOccupied > 1}
+                        <span class="text-ink-500 shrink-0">×{mount.slotsOccupied}</span>
+                      {/if}
+                    </li>
+                  {/each}
+                </ul>
+              {:else if ship.weapons[side.key] > 0}
+                <p class="mt-1 text-xs text-ink-500 italic">
+                  {ship.weapons[side.key]} unassigned slot{ship.weapons[side.key] === 1 ? '' : 's'}
+                </p>
+              {/if}
+            </li>
+          {/each}
         </ul>
       </div>
     {/if}
@@ -310,80 +300,4 @@
     </section>
   {/if}
 
-  {#if ship.playerCharacter}
-    <section>
-      <h2 class="display text-base uppercase tracking-wider text-ink-500 border-b border-ink-300 pb-1 mb-2">
-        Player Character
-      </h2>
-      <div class="flex items-start gap-3">
-        {#if pcPortraitDataUrl}
-          <img
-            src={pcPortraitDataUrl}
-            alt={`${ship.playerCharacter.characterName} portrait`}
-            class="w-16 h-16 rounded-md object-cover border border-surface-300 shrink-0"
-          />
-        {/if}
-        <div class="min-w-0 flex-1">
-          <div class="font-medium">{ship.playerCharacter.characterName || '—'}</div>
-          {#if ship.playerCharacter.traits}
-            <p class="text-sm text-ink-700 mt-1 whitespace-pre-wrap leading-snug break-words">
-              {ship.playerCharacter.traits}
-            </p>
-          {/if}
-        </div>
-      </div>
-    </section>
-  {/if}
-
-  {#if activeSession || pastSessions.length > 0}
-    <section>
-      <h2 class="display text-base uppercase tracking-wider text-ink-500 border-b border-ink-300 pb-1 mb-2">
-        Captain's Log
-      </h2>
-
-      {#if activeSession}
-        <article class="break-inside-avoid mb-4">
-          <header class="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
-            <h3 class="font-medium">{activeSession.title || 'Session'}</h3>
-            <span class="text-xs text-amber-700 uppercase tracking-wide">Open</span>
-            <time class="text-xs text-ink-500 font-mono">
-              Started {describeIso(activeSession.startedAt)}
-            </time>
-          </header>
-          {#if activeSession.sessionDate || activeSession.location || activeSession.encounterName}
-            <p class="text-xs text-ink-500 mt-0.5">
-              {[activeSession.sessionDate, activeSession.location, activeSession.encounterName].filter(Boolean).join(' · ')}
-            </p>
-          {/if}
-          {#if activeSession.narrative}
-            <p class="text-sm whitespace-pre-wrap mt-1 leading-relaxed break-words">
-              {activeSession.narrative}
-            </p>
-          {/if}
-        </article>
-      {/if}
-
-      {#each pastSessions as entry (entry.id)}
-        <article class="break-inside-avoid mb-3">
-          <header class="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
-            <h3 class="font-medium">{entry.title || 'Session'}</h3>
-            <time class="text-xs text-ink-500 font-mono">
-              {shortDate(entry.startedAt)}
-              {#if entry.endedAt}→ {shortDate(entry.endedAt)}{/if}
-            </time>
-          </header>
-          {#if entry.sessionDate || entry.location || entry.encounterName}
-            <p class="text-xs text-ink-500 mt-0.5">
-              {[entry.sessionDate, entry.location, entry.encounterName].filter(Boolean).join(' · ')}
-            </p>
-          {/if}
-          {#if entry.narrative}
-            <p class="text-sm whitespace-pre-wrap mt-1 leading-relaxed break-words">
-              {entry.narrative}
-            </p>
-          {/if}
-        </article>
-      {/each}
-    </section>
-  {/if}
 </article>

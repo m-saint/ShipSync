@@ -27,13 +27,20 @@
 
   let isFocused = $derived(workspace.focusedShipId === ship.id)
   let savedAt = $derived(workspace.lastSavedAtByShipId[ship.id] ?? null)
+  // v1.0.4 — `lastModifiedAt` replaced the per-ship `sessionHistory` for
+  // dirty tracking. A ship is "never saved" if it has accumulated edits
+  // but no save has landed yet; otherwise "unsaved" stands for fresh
+  // ships that haven't been written to disk and haven't been edited.
   let unsavedSince = $derived.by(() => {
-    if (!savedAt) return ship.sessionHistory.length > 0 ? 'never saved' : 'unsaved'
-    return null
+    if (savedAt) return null
+    return ship.lastModifiedAt ? 'never saved' : 'unsaved'
   })
 
   let hpPct = $derived(ship.hp.max > 0 ? Math.round((ship.hp.current / ship.hp.max) * 100) : 0)
-  let pcLabel = $derived(ship.playerCharacter?.characterName ?? null)
+  // v1.0.4: the player character is synonymous with the captain. The
+  // rail label that used to surface a separate PC name now reflects the
+  // captain officer station directly. Empty captain → no chip.
+  let pcLabel = $derived(ship.officers?.captain?.name ?? null)
 
   let orderIdx = $derived(workspace.shipOrder.indexOf(ship.id))
   let isFirst = $derived(orderIdx === 0)

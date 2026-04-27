@@ -80,7 +80,7 @@ function makeFixtureWorkspace() {
     boardedBy: null,
     portraitImageId: 'img-ship',
     playerCharacter: null,
-    sessionHistory: [],
+    lastModifiedAt: null,
     conditions: [],
   })
 

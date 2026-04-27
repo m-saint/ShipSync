@@ -611,60 +611,44 @@ describe('sumImageBytes', () => {
 
 describe('dirty-ship derivations', () => {
   /**
-   * @param {Array<string>} timestamps action timestamps in ISO order
+   * v1.0.4: dirty tracking now reads `lastModifiedAt` directly. Older
+   * sessions were tracked via `sessionHistory.actions[].timestamp`; that
+   * field is folded into `lastModifiedAt` on load. The helper below mints
+   * a ship with an explicit modification stamp so the assertions stay
+   * focused on the derivation rather than the migration.
+   *
+   * @param {string} stamp ISO timestamp for `lastModifiedAt`
    */
-  function shipWithActions(timestamps) {
+  function shipModifiedAt(stamp) {
     const ship = makeShip()
-    ship.sessionHistory = [
-      {
-        id: 's1',
-        workspaceSessionId: 'ws',
-        startedAt: timestamps[0] ?? '2026-01-01T00:00:00.000Z',
-        endedAt: null,
-        title: 'Test',
-        narrative: '',
-        actions: timestamps.map((ts, i) => ({
-          id: `a-${i}`,
-          timestamp: ts,
-          kind: 'ship.profile',
-          summary: 'fixture',
-          shipId: ship.id,
-          before: {},
-          after: {},
-        })),
-      },
-    ]
+    ship.lastModifiedAt = stamp
     return ship
   }
 
-  it('latestActionAtForShip returns null with no actions and the max otherwise', () => {
+  it('latestActionAtForShip returns null when never modified, otherwise the stamp', () => {
     expect(latestActionAtForShip(makeShip())).toBeNull()
-    const ship = shipWithActions([
-      '2026-01-01T10:00:00.000Z',
-      '2026-01-01T12:00:00.000Z',
-      '2026-01-01T11:00:00.000Z',
-    ])
+    const ship = shipModifiedAt('2026-01-01T12:00:00.000Z')
     expect(latestActionAtForShip(ship)).toBe('2026-01-01T12:00:00.000Z')
   })
 
-  it('isShipDirty: never-saved ship with actions is dirty', () => {
-    const ship = shipWithActions(['2026-01-01T10:00:00.000Z'])
+  it('isShipDirty: never-saved ship with edits is dirty', () => {
+    const ship = shipModifiedAt('2026-01-01T10:00:00.000Z')
     expect(isShipDirty(ship, null)).toBe(true)
   })
 
-  it('isShipDirty: just-imported ship with no actions is not dirty', () => {
+  it('isShipDirty: just-imported ship with no edits is not dirty', () => {
     expect(isShipDirty(makeShip(), null)).toBe(false)
   })
 
-  it('isShipDirty: action newer than save → dirty; older → clean', () => {
-    const ship = shipWithActions(['2026-01-01T11:00:00.000Z'])
+  it('isShipDirty: edit newer than save → dirty; older → clean', () => {
+    const ship = shipModifiedAt('2026-01-01T11:00:00.000Z')
     expect(isShipDirty(ship, '2026-01-01T10:00:00.000Z')).toBe(true)
     expect(isShipDirty(ship, '2026-01-01T12:00:00.000Z')).toBe(false)
   })
 
   it('dirtyShips returns ships in shipOrder that have edits since save', () => {
-    const a = shipWithActions(['2026-01-01T10:00:00.000Z'])
-    const b = shipWithActions(['2026-01-01T11:00:00.000Z'])
+    const a = shipModifiedAt('2026-01-01T10:00:00.000Z')
+    const b = shipModifiedAt('2026-01-01T11:00:00.000Z')
     const c = makeShip()
     const ws = makeEmptyWorkspace()
     ws.ships[a.id] = a
@@ -698,8 +682,9 @@ describe('nextCardinal', () => {
 })
 
 describe('actionCategory (v0.7)', () => {
-  it('exposes all four buckets in display order', () => {
-    expect([...ACTION_CATEGORIES]).toEqual(['combat', 'crew', 'refit', 'journal'])
+  it('exposes the three v1.0.4 buckets in display order', () => {
+    // v1.0.4 retired the `journal` bucket alongside the per-ship narrative.
+    expect([...ACTION_CATEGORIES]).toEqual(['combat', 'crew', 'refit'])
   })
 
   it('routes scene.* and rapidly-evolving combat state into combat', () => {
@@ -726,9 +711,12 @@ describe('actionCategory (v0.7)', () => {
     expect(actionCategory('pc.portrait')).toBe('crew')
   })
 
-  it('routes session.* into journal', () => {
-    expect(actionCategory('session.update')).toBe('journal')
-    expect(actionCategory('session.close')).toBe('journal')
+  it('routes legacy session.* through the refit catch-all (v1.0.4 retired the journal bucket)', () => {
+    // Older saves can still surface `session.update` / `session.close` log
+    // kinds. With the dedicated journal bucket gone, they fall through to
+    // refit so they remain visible in the unfiltered feed.
+    expect(actionCategory('session.update')).toBe('refit')
+    expect(actionCategory('session.close')).toBe('refit')
   })
 
   it('routes ship-identity / inventory / colors into refit (the catch-all)', () => {

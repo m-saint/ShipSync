@@ -1,16 +1,23 @@
 <script>
   /**
-   * ActivityLog — workspace-wide undo/redo log.
+   * ActivityLog — workspace-wide undo/redo log surfaced in the right rail.
    *
-   * v0.7 adds two filter rows that narrow what's shown without touching the
-   * undo stack itself:
+   * v1.0.4 — the v0.5 per-ship narrative journal was retired (the
+   * "Captain's Log" disclosure on each ship), so the workspace feed
+   * reclaimed the title; the file/folder names stay (ActivityLog) since
+   * they're the implementation, but the user-visible header reads
+   * "Captain's Log."
+   *
+   * v0.7 added two filter rows that narrow what's shown without touching
+   * the undo stack itself:
    *
    *   - Ship chip: "All" + one chip per loaded player ship. When set, only
    *     actions whose `shipId` matches are rendered. Workspace-level events
    *     (e.g. "Cleared the dashboard", scene round/phase/wind changes that
    *     aren't tied to a specific ship) are hidden when a ship is selected.
-   *   - Category segmented: "All / Combat / Crew / Refit / Journal" routed
-   *     through the pure `actionCategory(kind)` derivation.
+   *   - Category segmented: "All / Combat / Crew / Refit" routed through
+   *     the pure `actionCategory(kind)` derivation. (The retired `Journal`
+   *     bucket was dropped at v1.0.4 alongside the per-ship narrative.)
    *
    * Filters AND together. Only the rendered list is filtered — undo/redo
    * still operates on the full underlying stack so the player never gets
@@ -81,7 +88,7 @@
     setActivityLogShipFilter(shipId)
   }
 
-  /** @param {'all'|'combat'|'crew'|'refit'|'journal'} cat */
+  /** @param {'all'|'combat'|'crew'|'refit'} cat */
   function selectCategory(cat) {
     setActivityLogCategoryFilter(cat)
   }
@@ -95,7 +102,6 @@
     const cat = actionCategory(kind)
     if (cat === 'combat') return 'bg-crimson-500'
     if (cat === 'crew') return 'bg-brass-500'
-    if (cat === 'journal') return 'bg-deep-700'
     return 'bg-surface-400'
   }
 </script>
@@ -103,7 +109,7 @@
 <section class="flex-1 min-h-0 flex flex-col">
   <header class="px-3 py-2.5 border-b border-surface-200 flex items-center justify-between bg-surface-100">
     <div class="flex flex-col gap-0.5">
-      <h2 class="display text-sm uppercase tracking-wider text-ink-500">Activity Log</h2>
+      <h2 class="display text-sm uppercase tracking-wider text-ink-500">Captain's Log</h2>
       <span class="text-[10px] uppercase tracking-wide text-ink-400">Workspace edits · undo / redo</span>
     </div>
     <span class="text-xs text-ink-500">
@@ -121,7 +127,7 @@
         <div
           class="flex items-center gap-1 flex-wrap"
           role="group"
-          aria-label="Filter activity log by ship"
+          aria-label="Filter Captain's Log by ship"
         >
           <button
             type="button"
@@ -153,7 +159,7 @@
         <div
           class="inline-flex rounded-md border border-surface-300 bg-surface-50 p-0.5"
           role="group"
-          aria-label="Filter activity log by category"
+          aria-label="Filter Captain's Log by category"
         >
           <button
             type="button"
@@ -191,7 +197,7 @@
     </div>
   {/if}
 
-  <div class="flex-1 overflow-y-auto">
+  <div class="flex-1 overflow-y-auto overscroll-contain">
     {#if actionsAll.length === 0}
       <EmptyState
         align="left"

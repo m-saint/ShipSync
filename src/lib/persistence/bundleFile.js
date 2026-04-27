@@ -31,6 +31,11 @@
  */
 
 import { makeIdleScene } from '../domain/derivations.js'
+import {
+  migrateLegacyPlayerCharacter,
+  migrateLegacySessionHistory,
+  migrateLegacyWeaponInventory,
+} from './loadFile.js'
 
 export const BUNDLE_FILE_EXTENSION = '.shipsync.bundle.json'
 export const BUNDLE_FILE_MIME = 'application/json'
@@ -273,6 +278,17 @@ export async function parseBundleFile(file) {
         message: `Ship "${id}" wasn't listed in shipOrder; appended at the end.`,
       })
     }
+  }
+
+  // Fold legacy `playerCharacter` blocks into the captain station, seed the
+  // v1.0.4 `weaponInventory` field, and collapse any per-ship `sessionHistory`
+  // into `lastModifiedAt` for any ship written by an older version of the
+  // app. Mirrors the per-ship file path; all three helpers are idempotent so
+  // re-running them on already-clean ships is a no-op.
+  for (const id of Object.keys(ships)) {
+    migrateLegacyPlayerCharacter(ships[id])
+    migrateLegacyWeaponInventory(ships[id])
+    migrateLegacySessionHistory(ships[id])
   }
 
   const scene =

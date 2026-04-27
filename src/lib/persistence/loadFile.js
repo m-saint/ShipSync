@@ -5,7 +5,14 @@
 
 import { migrate } from './migrations/index.js'
 import { validateShipFile } from '../domain/validators.js'
-import { makeShip, makeEmptyOfficers, normalizeFlagState } from '../domain/derivations.js'
+import {
+  makeShip,
+  makeEmptyOfficers,
+  makeEmptyWeaponInventory,
+  normalizeFlagState,
+  totalSlotsOccupied,
+  WEAPON_SIDES,
+} from '../domain/derivations.js'
 import { STATIONS, PERSISTENT_SHIP_CONDITIONS } from '../domain/rules.js'
 
 /**
@@ -94,6 +101,7 @@ function repairShip(ship, issues) {
     speed: ship.speed ?? seed.speed,
     hp: ship.hp ?? seed.hp,
     weapons: ship.weapons ?? seed.weapons,
+    weaponInventory: ship.weaponInventory ?? seed.weaponInventory,
     supplies: ship.supplies ?? seed.supplies,
     resources: ship.resources ?? seed.resources,
     crew: ship.crew ?? seed.crew,
@@ -109,7 +117,14 @@ function repairShip(ship, issues) {
     boardedBy: ship.boardedBy ?? null,
     portraitImageId: ship.portraitImageId ?? null,
     playerCharacter: ship.playerCharacter ?? null,
-    sessionHistory: ship.sessionHistory ?? [],
+    /*
+     * v1.0.4: legacy `sessionHistory` is folded into `lastModifiedAt` by
+     * `migrateLegacySessionHistory` below. We pass it through onto `out`
+     * for the migrator to read; the migrator clears it before the function
+     * returns so the live ship object never carries the dead field.
+     */
+    sessionHistory: ship.sessionHistory ?? null,
+    lastModifiedAt: typeof ship.lastModifiedAt === 'string' ? ship.lastModifiedAt : null,
     conditions: sanitizePersistentConditions(ship.conditions, issues),
   }
   if (out.officers) {
@@ -126,14 +141,170 @@ function repairShip(ship, issues) {
       }
     }
   }
-  if (Array.isArray(out.sessionHistory)) {
-    for (const entry of out.sessionHistory) {
-      if (typeof entry.sessionDate !== 'string') entry.sessionDate = ''
-      if (typeof entry.location !== 'string') entry.location = ''
-      if (typeof entry.encounterName !== 'string') entry.encounterName = ''
+  migrateLegacyPlayerCharacter(out)
+  migrateLegacyWeaponInventory(out, issues)
+  migrateLegacySessionHistory(out)
+  return out
+}
+
+/**
+ * Weapon-mount inventory normalization (v1.0.4). Older saves predate the
+ * `weaponInventory` field entirely, and even fresh saves can have malformed
+ * entries when a hand-edited JSON file slips in. Behavior:
+ *
+ *  - Missing `weaponInventory` → seed an empty inventory (no inferred mounts;
+ *    the legacy slot counts in `weapons` are preserved as-is on first load,
+ *    and only diverge from the inventory once the captain edits either side).
+ *  - Each side's array is filtered to well-formed `WeaponMount` records:
+ *    `{ id: string, name: string, slotsOccupied: positive integer }`.
+ *  - Slot counts in `weapons` are *raised* to match the inventory's true
+ *    occupied count, so the UI never displays an inventory that overflows
+ *    its declared capacity. Going the other direction (lowering counts that
+ *    were already higher) is the captain's prerogative — we leave a
+ *    captain-set higher cap alone since they may be reserving empty slots.
+ *
+ * Idempotent — calling it twice on the same ship produces the same shape,
+ * so it's safe to invoke from the file load path, the bundle load path, and
+ * the autosave hydrate path. The `issues` parameter is optional for the
+ * non-`repairShip` callers that don't surface validation messages.
+ *
+ * @param {import('../domain/types.js').Ship} ship — mutated in place.
+ * @param {import('../domain/validators.js').ValidationIssue[]} [issues]
+ */
+export function migrateLegacyWeaponInventory(ship, issues) {
+  const raw = ship.weaponInventory
+  /** @type {import('../domain/types.js').WeaponInventory} */
+  const inventory = makeEmptyWeaponInventory()
+  let droppedMounts = 0
+  for (const side of WEAPON_SIDES) {
+    const list = Array.isArray(raw?.[side]) ? raw[side] : []
+    for (const entry of list) {
+      if (
+        entry &&
+        typeof entry === 'object' &&
+        typeof entry.id === 'string' &&
+        entry.id.length > 0 &&
+        typeof entry.name === 'string' &&
+        Number.isFinite(entry.slotsOccupied) &&
+        Number(entry.slotsOccupied) >= 1
+      ) {
+        inventory[side].push({
+          id: entry.id,
+          name: entry.name,
+          slotsOccupied: Math.max(1, Math.floor(Number(entry.slotsOccupied))),
+        })
+      } else {
+        droppedMounts++
+      }
     }
   }
-  return out
+  ship.weaponInventory = inventory
+  if (ship.weapons) {
+    for (const side of WEAPON_SIDES) {
+      const occupied = totalSlotsOccupied(inventory[side])
+      const declared = Number.isFinite(ship.weapons[side]) ? Number(ship.weapons[side]) : 0
+      if (occupied > declared) {
+        ship.weapons[side] = occupied
+      }
+    }
+  }
+  if (droppedMounts > 0 && issues) {
+    issues.push({
+      severity: 'warn',
+      path: 'ship.weaponInventory',
+      message: `Dropped ${droppedMounts} malformed weapon mount${droppedMounts === 1 ? '' : 's'}.`,
+    })
+  }
+}
+
+/**
+ * PC ≡ Captain consolidation (v1.0.4). The legacy `playerCharacter` was a
+ * separate ship extension with its own card. As of v1.0.4 the player
+ * character is considered synonymous with the captain (the player is
+ * assumed to be the captain, or acting on their behalf). On load we fold
+ * any populated PC fields onto the captain station — but only into the
+ * empty captain slots, so a captain that was already named or annotated
+ * won't get overwritten by a stale duplicate from the legacy block.
+ *
+ * The legacy `playerCharacter` field is then cleared in memory so future
+ * saves of this ship don't carry the duplicate. The Ship typedef keeps
+ * the field nullable for back-compat reads of older saves still on disk.
+ *
+ * Idempotent: running it on a ship whose `playerCharacter` is already null
+ * is a no-op, so it's safe to call from multiple ingestion points
+ * (per-ship file load, bundle load, autosave hydrate).
+ *
+ * @param {import('../domain/types.js').Ship} ship — mutated in place.
+ */
+export function migrateLegacyPlayerCharacter(ship) {
+  if (!ship?.playerCharacter || !ship.officers?.captain) return
+  const pc = ship.playerCharacter
+  const captain = ship.officers.captain
+  if (
+    typeof pc.characterName === 'string' &&
+    pc.characterName.trim().length > 0 &&
+    (captain.name == null || captain.name.trim().length === 0)
+  ) {
+    captain.name = pc.characterName.trim()
+  }
+  if (
+    typeof pc.traits === 'string' &&
+    pc.traits.trim().length > 0 &&
+    (typeof captain.notes !== 'string' || captain.notes.trim().length === 0)
+  ) {
+    captain.notes = pc.traits
+  }
+  if (pc.portraitImageId && !captain.portraitImageId) {
+    captain.portraitImageId = pc.portraitImageId
+  }
+  ship.playerCharacter = null
+}
+
+/**
+ * Legacy session-history fold (v1.0.4). v0.5–v1.0.3 stored a per-ship
+ * narrative journal (`sessionHistory`) that the dashboard surfaced as the
+ * Captain's Log. v1.0.4 retired that feature — the dirty-state indicator
+ * now reads `lastModifiedAt` directly. To stay backward-compatible with
+ * older save files we:
+ *
+ *   1. Find the latest `actions[].timestamp` across every entry's actions
+ *      (the same value the old `latestActionAtForShip` used to compute).
+ *   2. If the new ship object hasn't already supplied a `lastModifiedAt`,
+ *      stamp it with that derived timestamp so the "unsaved" pill
+ *      continues to behave the same on reload.
+ *   3. Clear `sessionHistory` from the live ship object — the field is no
+ *      longer read by anything in the runtime, and dropping it here keeps
+ *      future autosaves and exports from re-emitting the dead payload.
+ *
+ * Idempotent: a ship that's already been through the migrator (no
+ * `sessionHistory`, `lastModifiedAt` already set) round-trips unchanged.
+ *
+ * @param {import('../domain/types.js').Ship & { sessionHistory?: unknown }} ship — mutated in place.
+ */
+export function migrateLegacySessionHistory(ship) {
+  if (!ship) return
+  const history = ship.sessionHistory
+  if (Array.isArray(history) && history.length > 0) {
+    /** @type {string|null} */
+    let latest = null
+    for (const entry of history) {
+      const actions = Array.isArray(entry?.actions) ? entry.actions : []
+      for (const action of actions) {
+        const ts = action?.timestamp
+        if (typeof ts === 'string' && (latest == null || ts > latest)) {
+          latest = ts
+        }
+      }
+    }
+    if (latest != null && (typeof ship.lastModifiedAt !== 'string' || !ship.lastModifiedAt)) {
+      ship.lastModifiedAt = latest
+    }
+  }
+  // Drop the dead field whether it was an array, null, or some legacy junk
+  // shape — leaving it on the live ship would let it leak back into autosave.
+  if ('sessionHistory' in ship) {
+    delete ship.sessionHistory
+  }
 }
 
 /**

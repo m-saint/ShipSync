@@ -316,20 +316,21 @@ export function isHeavyWeaponEligible(shipType) {
 }
 
 /**
- * Latest action timestamp recorded against this ship across all sessions.
+ * ISO timestamp of the most recent in-workspace mutation for this ship.
  * Returns `null` if the ship has no logged actions yet.
+ *
+ * v1.0.4: now reads `ship.lastModifiedAt` directly, since that field is
+ * stamped by `commit()` whenever an action carries a `shipId`. Older
+ * saves without the field default to `null` (clean), and any legacy
+ * `sessionHistory` is folded into the field by `migrateLegacySessionHistory`
+ * during load — so loading a v1.0.3 ship file still produces the right
+ * dirty status across the workspace.
+ *
  * @param {import('./types.js').Ship} ship
  * @returns {string|null}
  */
 export function latestActionAtForShip(ship) {
-  let latest = /** @type {string|null} */ (null)
-  for (const session of ship.sessionHistory ?? []) {
-    for (const action of session.actions ?? []) {
-      if (!action?.timestamp) continue
-      if (latest == null || action.timestamp > latest) latest = action.timestamp
-    }
-  }
-  return latest
+  return ship?.lastModifiedAt ?? null
 }
 
 /**
@@ -464,6 +465,7 @@ export function makeShip(overrides = {}) {
         stern: profile?.weapons.stern ?? 0,
         heavyEligible: profile?.heavyEligible ?? isHeavyWeaponEligible(type),
       },
+    weaponInventory: overrides.weaponInventory ?? makeEmptyWeaponInventory(),
     supplies: overrides.supplies ?? { grub: 0, grog: 0, gear: 0 },
     resources:
       overrides.resources ?? {
@@ -490,8 +492,15 @@ export function makeShip(overrides = {}) {
     fires: overrides.fires ?? 0,
     boardedBy: overrides.boardedBy ?? null,
     portraitImageId: overrides.portraitImageId ?? null,
-    playerCharacter: overrides.playerCharacter ?? null,
-    sessionHistory: overrides.sessionHistory ?? [],
+    /*
+     * v1.0.4 retired the per-ship narrative journal. `lastModifiedAt`
+     * replaces the old `sessionHistory` for the one downstream consumer
+     * that actually used it — `latestActionAtForShip` / `isShipDirty`,
+     * which power the "unsaved" indicator. New ships start at null
+     * (no edits since creation, equivalent to "no actions yet" semantics
+     * of the old code path).
+     */
+    lastModifiedAt: overrides.lastModifiedAt ?? null,
     conditions: overrides.conditions ?? [],
   }
   return base
@@ -586,6 +595,44 @@ export function makeEmptyOfficers() {
 }
 
 /**
+ * The four physical sides where weapon mounts live. Order matches the order
+ * the rulebook lists firing arcs in (PDF p. 178) so the UI lays them out
+ * front-to-back / port-then-starboard.
+ *
+ * @type {ReadonlyArray<'bow'|'port'|'starboard'|'stern'>}
+ */
+export const WEAPON_SIDES = Object.freeze(/** @type {const} */ (['bow', 'port', 'starboard', 'stern']))
+
+/**
+ * Factory: an empty WeaponInventory with one array per side. Used by
+ * `makeShip` for fresh charters and by `repairShip` to backfill ships
+ * loaded from pre-v1.0.4 saves where the field didn't exist.
+ *
+ * @returns {import('./types.js').WeaponInventory}
+ */
+export function makeEmptyWeaponInventory() {
+  return { bow: [], port: [], starboard: [], stern: [] }
+}
+
+/**
+ * Sum the slots occupied by every mount on a side. Used to derive the
+ * `WeaponSlots` count from `WeaponInventory` so we never have a tally that
+ * disagrees with the list of pieces visible to the captain.
+ *
+ * @param {import('./types.js').WeaponMount[] | undefined} mounts
+ * @returns {number}
+ */
+export function totalSlotsOccupied(mounts) {
+  if (!Array.isArray(mounts)) return 0
+  let total = 0
+  for (const mount of mounts) {
+    const occupied = Number.isFinite(mount?.slotsOccupied) ? Number(mount.slotsOccupied) : 0
+    if (occupied > 0) total += Math.floor(occupied)
+  }
+  return total
+}
+
+/**
  * Factory: a fresh Scene at idle, north wind, no scene ships, no pursuit.
  * @returns {import('./types.js').Scene}
  */
@@ -615,7 +662,6 @@ export function makeEmptyWorkspace() {
     images: {},
     focusedShipId: null,
     lastSavedAtByShipId: {},
-    workspaceSessionId: null,
   }
 }
 
@@ -759,15 +805,19 @@ export const NauticalCopy = Object.freeze({
  *  - `refit` is the catch-all for ship-identity / inventory / colors edits that
  *    typically happen between fights — name, profile, weapons, supplies, portrait,
  *    flag locker, max-crew / skeleton-mark, and the rest of the workspace verbs.
- *  - `journal` covers every Captain's-Log narrative mutation.
+ *
+ * v1.0.4 dropped the `journal` bucket along with the Captain's-Log narrative
+ * feature; the rail's renamed "Captain's Log" header now sits over the same
+ * three filterable buckets. Legacy `session.*` action kinds loaded from older
+ * saves fall through to `refit` (the catch-all) so they still appear when
+ * the filter is unset.
  */
-export const ACTION_CATEGORIES = /** @type {const} */ (['combat', 'crew', 'refit', 'journal'])
+export const ACTION_CATEGORIES = /** @type {const} */ (['combat', 'crew', 'refit'])
 
 export const ACTION_CATEGORY_LABELS = {
   combat: 'Combat',
   crew: 'Crew',
   refit: 'Refit',
-  journal: 'Journal',
 }
 
 /**
@@ -776,7 +826,7 @@ export const ACTION_CATEGORY_LABELS = {
  * persistent ship-level state.
  *
  * @param {string} kind
- * @returns {'combat'|'crew'|'refit'|'journal'}
+ * @returns {'combat'|'crew'|'refit'}
  */
 export function actionCategory(kind) {
   if (typeof kind !== 'string') return 'refit'
@@ -795,7 +845,6 @@ export function actionCategory(kind) {
     return 'combat'
   }
   if (kind.startsWith('officer.') || kind.startsWith('pc.')) return 'crew'
-  if (kind.startsWith('session.')) return 'journal'
   return 'refit'
 }
 

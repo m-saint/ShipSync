@@ -32,6 +32,13 @@
   import Button from '../../ui/Button.svelte'
   import { endScene, workspace } from '../../state/workspace.svelte.js'
 
+  /**
+   * @type {{
+   *   oncollapse?: () => void,
+   * }}
+   */
+  let { oncollapse = undefined } = $props()
+
   const PERSISTENCE_HINT =
     "Scene state — round, phase, wind, weather gage, pursuit, sighted ships — is intentionally ephemeral. It rides along in the autosave snapshot so a refresh won't lose your place, but it's never written into the per-ship .shipsync.json files. Save those when you want to capture the ship itself."
 
@@ -86,20 +93,36 @@
 
 <section class="flex-1 min-h-0 flex flex-col border-b border-surface-200" aria-label="Current scene">
   <header class="px-3 py-2.5 border-b border-surface-200 bg-surface-100 shrink-0">
-    <div class="flex items-center justify-between">
+    <div class="flex items-center justify-between gap-2">
       <h2 class="display text-sm uppercase tracking-wider text-ink-500">Scene</h2>
-      <RuleTooltip hint={PERSISTENCE_HINT} display="inline-flex">
-        <span
-          class="text-[10px] uppercase tracking-wide text-ink-400 cursor-help"
-          aria-label="Scene state persistence note"
-        >
-          autosave only
-        </span>
-      </RuleTooltip>
+      <div class="flex items-center gap-2">
+        <RuleTooltip hint={PERSISTENCE_HINT} display="inline-flex">
+          <span
+            class="text-[10px] uppercase tracking-wide text-ink-400 cursor-help"
+            aria-label="Scene state persistence note"
+          >
+            autosave only
+          </span>
+        </RuleTooltip>
+        {#if oncollapse}
+          <button
+            type="button"
+            class="w-6 h-6 flex items-center justify-center rounded text-ink-500 hover:bg-surface-100 hover:text-ink-800"
+            onclick={oncollapse}
+            aria-label="Collapse scene & log rail"
+            aria-expanded="true"
+            title="Collapse scene & log"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
+        {/if}
+      </div>
     </div>
   </header>
 
-  <div class="flex-1 min-h-0 overflow-y-auto flex flex-col">
+  <div class="flex-1 min-h-0 overflow-y-auto overscroll-contain flex flex-col">
     <RoundControls />
     <WeatherGageControl />
     <PursuitTracker />
