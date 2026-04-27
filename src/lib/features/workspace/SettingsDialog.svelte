@@ -68,7 +68,7 @@
   onClose={handleClose}
 >
   <div class="flex flex-col gap-5">
-    <Field label="Color scheme" helpText="Dark mode lightens portraits via a counter-invert pass; small artifacts on heavy art are expected.">
+    <Field label="Color scheme" helpText="Dark mode swaps to a hand-tuned dark palette so dialogs, popovers, and portraits all follow along.">
       <div
         class="inline-flex rounded-md border border-surface-300 bg-surface-50 p-0.5"
         role="radiogroup"

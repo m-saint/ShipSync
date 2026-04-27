@@ -33,9 +33,9 @@
    * `data-[density=compact]:` variants consume — no global stylesheet
    * change required.
    *
-   * Print views drop the dark attribute. The filter-inversion pass that
-   * powers dark mode would invert ink on paper too; printed sheets stay
-   * readable on a black-on-white printer regardless of the user's chosen
+   * Print views drop the dark attribute. The dark palette would render
+   * cream-on-ink on paper too — fine on a screen, wasteful on a printer.
+   * Printed sheets stay black-on-white regardless of the user's chosen
    * dashboard scheme.
    */
   $effect(() => {

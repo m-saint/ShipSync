@@ -80,6 +80,25 @@
     min-height: 100vh;
   }
 
+  /*
+   * Keep the page itself anchored while a modal is open.
+   * Native <dialog>.showModal() only suppresses focus and basic key
+   * events; trackpads and wheels can still scroll the document
+   * underneath the backdrop, which makes the dialog feel detached
+   * from the surface it just covered. This guard freezes BOTH the
+   * <html> root and <body> while ANY dialog with the `open`
+   * attribute is mounted — locking just one is enough on Firefox /
+   * Safari, but Chrome/Edge attribute the document scroll to the
+   * <html> element on some viewports, so we belt-and-suspender it.
+   * The attribute is set/cleared by the platform when showModal()
+   * / close() run, so we don't have to thread a class through every
+   * Dialog.svelte instance.
+   */
+  html:has(dialog[open]),
+  html:has(dialog[open]) body {
+    overflow: hidden;
+  }
+
   h1,
   h2,
   h3,
@@ -144,37 +163,88 @@
 }
 
 /*
- * Dark mode (v1.0).
+ * Dark mode (v1.0.3 — hand-tuned palette, was filter-inversion).
  *
- * We chose filter-inversion rather than a hand-tuned dark palette: the
- * v0.x-v0.9 surface ships dozens of bespoke color decisions across
- * tokens, ship cards, dialogs, scene chips, conditions, etc. — recoloring
- * each by hand for two themes would have been a milestone in itself. The
- * trade-off is that filter inversion turns black ink to white, but it
- * also rotates every chromatic accent. We add `hue-rotate(180deg)` to
- * pull blues back to blues / reds back to reds; the residual shift is
- * small and consistent across the surface.
+ * v1.0 shipped dark mode as a single `body { filter: invert(1)
+ * hue-rotate(180deg) }` rule. It worked but had two structural problems
+ * the usability test surfaced: (a) native <dialog> elements render in
+ * the browser's top layer outside <body>, so dialogs and their
+ * descendants stayed in the light palette while the dashboard
+ * underneath inverted, and (b) every chromatic accent (brass, sea,
+ * crimson, amber, tide) had to be hue-rotated to come back out the
+ * other side, which left small but consistent color drift.
  *
- * Counter-invert: any node tagged `data-counter-invert="true"` (and
- * media elements that need their original color: <img>, <video>, art
- * <svg> with fill, custom-painted <canvas>) gets the inverse filter so
- * portraits and flag art appear true-to-life.
+ * The fix is the option we deferred at v1.0: redefine each Tailwind
+ * theme token under `html[data-color-scheme='dark']`. Every utility
+ * keeps its semantic meaning — `bg-surface-50` is still "primary
+ * background", `text-ink-900` is still "highest-contrast text" — only
+ * the underlying hex value changes. The result: dialogs, popovers, and
+ * any future top-layer surface participate automatically (they read
+ * the same custom properties as the dashboard), portraits never need a
+ * counter-invert pass, and accent hues stay true.
  *
- * The filter is applied to <body> rather than <html> so the document
- * background also flips; if it were on <html> the area outside the body
- * would still draw the light surface color. The 180deg hue-rotate runs
- * inside the same composition pass so a single counter-invert filter
- * cleanly cancels both transforms in one go.
+ * Strategy: each scale is end-flipped — what was lightest in the light
+ * scale becomes darkest in dark mode and vice versa. Mid-tones are
+ * preserved or nudged by 1-2 stops where contrast would otherwise be
+ * marginal. Surface and ink anchor on the same warm-cream/deep-ink
+ * extremes the project has used since v0.1, so a dark workspace reads
+ * as "lantern-lit night chart" rather than "neutral grey IDE".
  */
-html[data-color-scheme='dark'] body {
-  filter: invert(1) hue-rotate(180deg);
+html[data-color-scheme='dark'] {
+  --color-surface-50: #0e0c07;
+  --color-surface-100: #1a160e;
+  --color-surface-200: #2a2316;
+  --color-surface-300: #3d3220;
+  --color-surface-400: #5a4a30;
+  --color-surface-500: #8f7a4f;
+  --color-surface-600: #c9b483;
+  --color-surface-700: #e7d9b6;
+  --color-surface-800: #f4ecd8;
+  --color-surface-900: #fbf8f1;
+
+  --color-ink-50: #14110a;
+  --color-ink-100: #2f2818;
+  --color-ink-300: #6b5d3c;
+  --color-ink-500: #a89875;
+  --color-ink-700: #ede4ce;
+  --color-ink-900: #fbf8f1;
+
+  --color-brass-50: #3a2c17;
+  --color-brass-100: #6b5430;
+  --color-brass-300: #8c6d3f;
+  --color-brass-500: #b08d57;
+  --color-brass-600: #d4b76a;
+  --color-brass-700: #f0dfa8;
+  --color-brass-900: #faf3e0;
+
+  --color-sea-50: #1d5a39;
+  --color-sea-300: #2e8b57;
+  --color-sea-500: #6aa68d;
+  --color-sea-700: #e6f0ec;
+
+  --color-crimson-50: #7a1414;
+  --color-crimson-300: #b22222;
+  --color-crimson-500: #d76b6b;
+  --color-crimson-700: #fbe8e8;
+
+  --color-amber-50: #92400e;
+  --color-amber-300: #d97706;
+  --color-amber-500: #f1b261;
+  --color-amber-700: #fdf3e0;
+
+  --color-tide-50: #142658;
+  --color-tide-300: #1e3a8a;
+  --color-tide-500: #6989b0;
+  --color-tide-700: #e8eef5;
 }
 
-html[data-color-scheme='dark'] img,
-html[data-color-scheme='dark'] video,
-html[data-color-scheme='dark'] canvas,
-html[data-color-scheme='dark'] [data-counter-invert='true'] {
-  filter: invert(1) hue-rotate(180deg);
+/*
+ * Dialog backdrop tone in dark mode — the default ink-900/40 tinted
+ * backdrop becomes "dark on dark" once ink-900 flips light. Restore
+ * the contrast by anchoring the backdrop to the deepest surface tone.
+ */
+html[data-color-scheme='dark'] dialog::backdrop {
+  background-color: rgba(14, 12, 7, 0.6);
 }
 
 /*
@@ -211,9 +281,9 @@ html[data-density='compact'] .officer-card {
 /*
  * Tailwind v4's @custom-variant lets us write dark-aware utilities
  * without importing a config — surfaces that need a dark-only override
- * (e.g. shadows that wash out under inversion) can use `dark:` once
- * defined here. Today the filter approach handles 99% of color, so
- * this is reserved for future targeted overrides.
+ * (e.g. an explicit `dark:bg-...` for a chip that doesn't follow the
+ * surface scale) opt in via the `dark:` prefix. The palette swap above
+ * handles 99% of color, so this hook is for the rare exception.
  */
 @custom-variant dark (html[data-color-scheme='dark'] &);
 @custom-variant compact (html[data-density='compact'] &);

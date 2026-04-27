@@ -12,10 +12,10 @@
 </script>
 
 <aside
-  class="surface-rail flex flex-col w-72 shrink-0 overflow-y-auto"
+  class="surface-rail flex flex-col w-72 shrink-0 overflow-hidden min-h-0"
   aria-label="Loaded ships"
 >
-  <div class="p-3 border-b border-surface-200 flex items-center justify-between gap-2">
+  <div class="p-3 border-b border-surface-200 flex items-center justify-between gap-2 shrink-0">
     <h2 class="display text-sm uppercase tracking-wider text-ink-500">Fleet</h2>
     <span class="text-xs text-ink-500">{ships.length}</span>
   </div>
@@ -46,7 +46,7 @@
   </div>
 
   {#if ships.length > 0}
-    <div class="p-3 border-t border-surface-200 flex flex-col gap-2 bg-surface-100">
+    <div class="p-3 border-t border-surface-200 flex flex-col gap-2 bg-surface-100 shrink-0">
       <Button
         variant="secondary"
         size="sm"

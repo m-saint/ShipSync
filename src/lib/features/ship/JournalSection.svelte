@@ -50,16 +50,21 @@
   let latest = $derived(history[history.length - 1] ?? null)
   let pastEntries = $derived(history.slice(0, -1))
 
-  // Local drafts so typing doesn't fire a commit per keystroke. Re-sync to
-  // the canonical entry whenever the latest entry's id changes (closing a
+  // Local drafts so typing doesn't fire a commit per keystroke. We deliberately
+  // start with literal defaults and let the $effect below seed the drafts on
+  // mount and re-sync them whenever the latest entry's id changes (closing a
   // session causes a new entry to take its place, and we want the editor to
-  // pick up the fresh blank state).
-  let titleDraft = $state(latest?.title ?? 'Session')
-  let narrativeDraft = $state(latest?.narrative ?? '')
-  let sessionDateDraft = $state(latest?.sessionDate ?? '')
-  let locationDraft = $state(latest?.location ?? '')
-  let encounterDraft = $state(latest?.encounterName ?? '')
-  let lastSeenEntryId = $state(latest?.id ?? null)
+  // pick up the fresh blank state). Reading `latest` directly inside $state(...)
+  // would only capture the initial value (Svelte 5 doesn't track $state
+  // initializers as derivations), so the effect is the canonical place to wire
+  // the sync.
+  let titleDraft = $state('Session')
+  let narrativeDraft = $state('')
+  let sessionDateDraft = $state('')
+  let locationDraft = $state('')
+  let encounterDraft = $state('')
+  /** @type {string | null} */
+  let lastSeenEntryId = $state(null)
 
   $effect(() => {
     const id = latest?.id ?? null

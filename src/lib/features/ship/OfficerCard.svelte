@@ -123,49 +123,45 @@
         />
       </Field>
 
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Field label="Rank" helpText="1–5. Captain rank feeds Mettle baseline.">
-          <NumberStepper
-            ariaLabel="Rank"
-            value={officer.rank}
-            min={1}
-            max={5}
-            step={1}
-            onchange={(v) => setOfficer(ship.id, station, { rank: /** @type {any} */ (v) })}
-          />
-        </Field>
+      <Field label="Rank" helpText="1–5. Captain rank feeds Mettle baseline.">
+        <NumberStepper
+          ariaLabel="Rank"
+          value={officer.rank}
+          min={1}
+          max={5}
+          step={1}
+          onchange={(v) => setOfficer(ship.id, station, { rank: /** @type {any} */ (v) })}
+        />
+      </Field>
 
-        <Field label="Status" helpText="Stricken or Dead means the station runs short.">
-          <fieldset class="inline-flex rounded-md border border-surface-300 overflow-hidden">
-            <legend class="sr-only">{STATION_LABELS[station]} status</legend>
-            {#each STATUS_OPTIONS as opt (opt.value)}
-              {@const active = officer.status === opt.value}
-              {@const activeClass =
-                opt.value === 'active'
-                  ? 'bg-brass-100 text-brass-700'
-                  : opt.value === 'stricken'
-                    ? 'bg-amber-50 text-amber-700'
-                    : 'bg-crimson-50 text-crimson-700'}
-              <label
-                title={opt.hint}
-                class={`px-3 h-10 inline-flex items-center text-sm font-medium border-r border-surface-300 last:border-r-0 cursor-pointer ${
-                  active ? activeClass : 'bg-surface-50 text-ink-700 hover:bg-surface-100'
-                }`}
-              >
-                <input
-                  type="radio"
-                  class="sr-only"
-                  name={`officer-${ship.id}-${station}-status`}
-                  value={opt.value}
-                  checked={active}
-                  onchange={() => setOfficer(ship.id, station, { status: opt.value })}
-                />
-                {opt.label}
-              </label>
-            {/each}
-          </fieldset>
-        </Field>
-      </div>
+      <Field label="Status" helpText="Stricken or Dead means the station runs short.">
+        <div
+          role="group"
+          aria-label={`${STATION_LABELS[station]} status`}
+          class="flex w-full rounded-md border border-surface-300 overflow-hidden"
+        >
+          {#each STATUS_OPTIONS as opt (opt.value)}
+            {@const active = officer.status === opt.value}
+            {@const activeClass =
+              opt.value === 'active'
+                ? 'bg-brass-100 text-brass-700'
+                : opt.value === 'stricken'
+                  ? 'bg-amber-50 text-amber-700'
+                  : 'bg-crimson-50 text-crimson-700'}
+            <button
+              type="button"
+              title={opt.hint}
+              aria-pressed={active}
+              class={`flex-1 px-2 h-10 inline-flex items-center justify-center text-sm font-medium border-r border-surface-300 last:border-r-0 ${
+                active ? activeClass : 'bg-surface-50 text-ink-700 hover:bg-surface-100 cursor-pointer'
+              }`}
+              onclick={() => setOfficer(ship.id, station, { status: opt.value })}
+            >
+              {opt.label}
+            </button>
+          {/each}
+        </div>
+      </Field>
 
       <Field
         label="Duties & quirks"

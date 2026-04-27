@@ -14,7 +14,7 @@
  * @typedef {'auto'|'light'|'dark'} ColorScheme
  *   - 'auto'  follow the OS preference (`prefers-color-scheme`)
  *   - 'light' force the default palette regardless of OS
- *   - 'dark'  force the inverted palette regardless of OS
+ *   - 'dark'  force the dark palette regardless of OS
  *
  * @typedef {'comfortable'|'compact'} Density
  *   Tunes vertical rhythm + control heights across the dashboard.

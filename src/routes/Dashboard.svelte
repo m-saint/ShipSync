@@ -265,7 +265,7 @@
   }
 </script>
 
-<div class="h-dvh flex flex-col bg-surface-50 text-ink-900">
+<div class="h-dvh flex flex-col overflow-hidden bg-surface-50 text-ink-900">
   <WorkspaceTopBar {autosaveState} {autosaveMeta} onAutosaveRetry={retryAutosave} />
 
   {#if ui.resumeBanner.visible}
@@ -295,7 +295,7 @@
     <LoadedShipsRail />
     <ShipDetail />
     <aside
-      class="surface-rail-right w-80 shrink-0 flex flex-col"
+      class="surface-rail-right w-80 shrink-0 flex flex-col min-h-0"
       aria-label="Scene and log"
     >
       <ScenePanel />

@@ -28,12 +28,18 @@
   /** @type {Props} */
   let { ship, entry } = $props()
 
-  let titleDraft = $state(entry.title)
-  let narrativeDraft = $state(entry.narrative)
-  let sessionDateDraft = $state(entry.sessionDate ?? '')
-  let locationDraft = $state(entry.location ?? '')
-  let encounterDraft = $state(entry.encounterName ?? '')
-  let lastSeenEntryId = $state(entry.id)
+  // Drafts start with literal defaults and are seeded by the $effect below on
+  // first mount and whenever the entry id changes. Reading `entry` directly in
+  // $state(...) initializers only captures the initial value (Svelte 5 doesn't
+  // track $state initializers as derivations), so the effect is the canonical
+  // place to wire the sync.
+  let titleDraft = $state('')
+  let narrativeDraft = $state('')
+  let sessionDateDraft = $state('')
+  let locationDraft = $state('')
+  let encounterDraft = $state('')
+  /** @type {string | null} */
+  let lastSeenEntryId = $state(null)
 
   $effect(() => {
     if (entry.id !== lastSeenEntryId) {

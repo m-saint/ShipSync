@@ -172,13 +172,13 @@
       />
     </Field>
 
-    <RuleTooltip hint={WEAPONS_HINT} display="block">
-      <div class="sm:col-span-2">
+    <div class="sm:col-span-2">
+      <RuleTooltip hint={WEAPONS_HINT} display="block">
         <Field label="Weapon slots">
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div class="grid grid-cols-2 gap-2">
             {#each [{ key: 'bow', label: 'Bow' }, { key: 'port', label: 'Port' }, { key: 'starboard', label: 'Starboard' }, { key: 'stern', label: 'Stern' }] as slot (slot.key)}
-              <label class="flex items-center justify-between gap-2 px-2 py-1.5 rounded-md border border-surface-300 bg-surface-50">
-                <span class="text-xs uppercase tracking-wide text-ink-500">{slot.label}</span>
+              <div class="flex flex-col items-stretch gap-1.5 px-2 py-2 rounded-md border border-surface-300 bg-surface-50">
+                <span class="text-[10px] uppercase tracking-wide text-ink-500">{slot.label}</span>
                 <NumberStepper
                   ariaLabel={`${slot.label} weapons`}
                   value={ship.weapons[slot.key]}
@@ -187,7 +187,7 @@
                   step={1}
                   onchange={(v) => setShipWeapons(ship.id, { [slot.key]: v })}
                 />
-              </label>
+              </div>
             {/each}
           </div>
           <label class="inline-flex items-center gap-2 mt-3 text-sm text-ink-700">
@@ -200,8 +200,8 @@
             Heavy weapons eligible
           </label>
         </Field>
-      </div>
-    </RuleTooltip>
+      </RuleTooltip>
+    </div>
   </div>
 
   <div class="border-t border-surface-200 pt-4">

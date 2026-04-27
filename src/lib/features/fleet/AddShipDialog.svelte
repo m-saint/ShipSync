@@ -61,6 +61,7 @@
     return {
       name: '',
       size: /** @type {import('../../domain/types.js').ShipSize} */ ('medium'),
+      sizeIsCustom: false,
       type: '',
       mobility: /** @type {import('../../domain/types.js').Mobility} */ ('balanced'),
       hpMax: defaultHpMaxFor('medium'),
@@ -84,11 +85,16 @@
   // Auto-fill defaults from the canonical ship-type profile (PDF p. 169 /
   // 198) when one is selected, otherwise from the size-keyed tables. The
   // captain can always override any field after auto-fill — the
-  // *IsCustom flags freeze the field to whatever they typed.
+  // *IsCustom flags freeze the field to whatever they typed. Size is
+  // included in the auto-fill set: a Sloop is small by definition, a
+  // Galleon is large, etc., and seeding size from the profile lets the
+  // size-keyed defaults (e.g. explosion DC) land correctly even before
+  // the captain has typed anything else.
   let typeProfile = $derived(shipTypeProfileFor(form.type))
 
   $effect(() => {
     const profile = typeProfile
+    if (profile && !form.sizeIsCustom) form.size = profile.size
     if (!form.hpMaxIsCustom) form.hpMax = profile?.hpMax ?? defaultHpMaxFor(form.size)
     if (!form.explosionDCIsCustom) form.explosionDC = defaultExplosionDCFor(form.size)
     if (!form.crewMaxIsCustom) form.crewMax = profile?.crewMax ?? defaultCrewMaxFor(form.size)
@@ -221,11 +227,23 @@
       </Field>
     </div>
 
-    <Field label="Size" htmlFor="add-ship-size" helpText="Drives default hull, crew, and explosion DC when no type is set.">
+    <Field
+      label="Size"
+      htmlFor="add-ship-size"
+      helpText={form.sizeIsCustom
+        ? 'Custom — auto-fill from the type profile is disabled.'
+        : typeProfile
+          ? `Auto-filled from ${form.type}.`
+          : 'Drives default hull, crew, and explosion DC when no type is set.'}
+    >
       <select
         id="add-ship-size"
         class="w-full h-10 px-3 rounded-md border border-surface-300 bg-surface-50 text-sm"
-        bind:value={form.size}
+        value={form.size}
+        onchange={(e) => {
+          form.size = /** @type {any} */ (e.currentTarget.value)
+          form.sizeIsCustom = true
+        }}
       >
         {#each SHIP_SIZES as size (size)}
           <option value={size}>{SHIP_SIZE_LABELS[size]}</option>
@@ -256,9 +274,7 @@
         <option value="Brigantine"></option>
         <option value="Frigate"></option>
         <option value="Galleon"></option>
-        <option value="Man-o'-War"></option>
-        <option value="Junk"></option>
-        <option value="Longship"></option>
+        <option value="Man o' War"></option>
       </datalist>
     </Field>
 

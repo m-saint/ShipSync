@@ -129,7 +129,7 @@
 </script>
 
 <section
-  class="flex-1 min-w-[22rem] overflow-y-auto"
+  class="flex-1 min-w-[22rem] overflow-y-auto overflow-x-hidden"
   aria-label="Ship detail"
 >
   {#if !ship}
