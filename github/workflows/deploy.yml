@@ -1,0 +1,67 @@
+name: Deploy to GitHub Pages
+
+# Push to main → build → publish dist/ to Pages.
+# Also exposed as a manual run from the Actions tab via workflow_dispatch.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Required for the deploy-pages action to mint an OIDC token + write the
+# Pages artifact. contents:read is enough for checkout; we don't write
+# back to the repo.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One in-flight Pages deploy at a time. Don't kill a running deploy when
+# a new commit lands — let it finish, then run the next one. Avoids the
+# half-deployed state you can otherwise get on rapid pushes.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Auto-derive the Vite base path from the repo type:
+      #   project repo (most common):     base = /<repo>/
+      #   user/org pages (USER.github.io): base = /
+      # Writing to $GITHUB_ENV exposes BASE_PATH to subsequent steps, so the
+      # build step picks it up without an explicit env: block. Keeps
+      # vite.config.js generic — forks with a different repo name need
+      # zero build-config edits.
+      - name: Compute BASE_PATH
+        run: |
+          if [[ "${{ github.event.repository.name }}" == "${{ github.repository_owner }}.github.io" ]]; then
+            echo "BASE_PATH=/" >> "$GITHUB_ENV"
+          else
+            echo "BASE_PATH=/${{ github.event.repository.name }}/" >> "$GITHUB_ENV"
+          fi
+
+      - run: npm run build
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
