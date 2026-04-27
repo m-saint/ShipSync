@@ -103,6 +103,21 @@ npm run format       # prettier --write
 
 Node ≥ 22 is required (we lean on the standard `localStorage` shape that newer Node versions also expose).
 
+## Deploy to GitHub Pages
+
+Push to `main` and the workspace is live at `https://<user>.github.io/<repo>/` — no manual build, no branch wrangling. The wiring is two files:
+
+- `.github/workflows/deploy.yml` runs `npm ci && npm run build` on every push to `main`, uploads `dist/` as a Pages artifact, and publishes through `actions/deploy-pages`. It auto-detects the deployed URL shape: a project repo gets `BASE_PATH=/<repo>/`; a `<user>.github.io` user-page repo gets `BASE_PATH=/`. Forks don't have to edit anything.
+- `vite.config.js` reads `BASE_PATH` (default `/`) so every asset URL in the built `index.html` is repo-scoped. Without this, the deployed page silently 404s its JS / CSS bundles and renders blank.
+
+One-time setup on a new repo:
+
+1. Push the project to GitHub.
+2. Repo Settings → Pages → **Source: GitHub Actions**.
+3. Trigger the first run by pushing to `main` (or running the workflow manually from the Actions tab).
+
+That's the whole loop. Local `npm run dev` and `npm run build` are unaffected — both default to `BASE_PATH=/` and behave exactly as they did pre-deploy.
+
 ## How saves work
 
 Two save formats. Pick the one that matches the moment.
