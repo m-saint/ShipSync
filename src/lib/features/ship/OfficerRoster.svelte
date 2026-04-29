@@ -93,7 +93,7 @@
   let toggleLabel = $derived(collapsed ? 'Show all stations' : 'Key officers only')
 
   const KEY_HINT =
-    "Captain plus the four other Key Officers (First Mate, Navigator, Helmsperson, Master Gunner). Their ranks bonus the actions you take most in a fight, and they're the ones the rulebook checks first when it's casualty time."
+    "Captain plus the four other Key Officers (First Mate, Navigator, Helmsperson, Master Gunner). Their ranks bonus the actions you take most in a fight, and casualty rolls land on them first."
   const SECONDARY_HINT =
     "Quartermaster, Boatswain, Cook, Shipwright, Surgeon — the rest of the bridge. They keep the ship running between fights and round out the supply, repair, and morale duties."
 </script>

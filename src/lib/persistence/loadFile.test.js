@@ -84,21 +84,32 @@ describe('parseShipFile', () => {
 
   it('preserves persistent ship conditions through a save/load round-trip', async () => {
     const ship = makeShip()
-    ship.conditions = ['listing', 'surrendered']
+    ship.conditions = ['surrendered']
     const file = fileFromObject(makeShipFile(ship, {}))
     const result = await parseShipFile(file)
     expect(result.ok).toBe(true)
-    expect(result.ship?.conditions).toEqual(['listing', 'surrendered'])
+    expect(result.ship?.conditions).toEqual(['surrendered'])
   })
 
-  it('migrates legacy stricken-colors → surrendered on load (PDF p. 190 rename)', async () => {
+  it('migrates legacy stricken-colors → surrendered on load', async () => {
     const ship = makeShip()
     /** @type {any} */
     const ghost = ship
-    ghost.conditions = ['listing', 'stricken-colors']
+    ghost.conditions = ['stricken-colors']
     const result = await parseShipFile(fileFromObject(makeShipFile(ship, {})))
     expect(result.ok).toBe(true)
-    expect(result.ship?.conditions).toEqual(['listing', 'surrendered'])
+    expect(result.ship?.conditions).toEqual(['surrendered'])
+  })
+
+  it('silently drops retired listing chip without surfacing a warning', async () => {
+    const ship = makeShip()
+    /** @type {any} */
+    const ghost = ship
+    ghost.conditions = ['listing', 'surrendered']
+    const result = await parseShipFile(fileFromObject(makeShipFile(ship, {})))
+    expect(result.ok).toBe(true)
+    expect(result.ship?.conditions).toEqual(['surrendered'])
+    expect(result.issues.some((i) => i.path === 'ship.conditions')).toBe(false)
   })
 
   it('defaults missing conditions to an empty array (older files)', async () => {
@@ -115,10 +126,10 @@ describe('parseShipFile', () => {
     const ship = makeShip()
     /** @type {any} */
     const ghost = ship
-    ghost.conditions = ['listing', 'aurora-cursed', 'stricken-colors']
+    ghost.conditions = ['aurora-cursed', 'stricken-colors']
     const result = await parseShipFile(fileFromObject(makeShipFile(ship, {})))
     expect(result.ok).toBe(true)
-    expect(result.ship?.conditions).toEqual(['listing', 'surrendered'])
+    expect(result.ship?.conditions).toEqual(['surrendered'])
     expect(result.issues.some((i) => i.path === 'ship.conditions')).toBe(true)
   })
 
@@ -126,17 +137,17 @@ describe('parseShipFile', () => {
     const ship = makeShip()
     /** @type {any} */
     const ghost = ship
-    ghost.conditions = ['listing', 'listing']
+    ghost.conditions = ['surrendered', 'surrendered']
     const result = await parseShipFile(fileFromObject(makeShipFile(ship, {})))
     expect(result.ok).toBe(true)
-    expect(result.ship?.conditions).toEqual(['listing'])
+    expect(result.ship?.conditions).toEqual(['surrendered'])
   })
 
   it('treats a non-array conditions field as missing and warns', async () => {
     const ship = makeShip()
     /** @type {any} */
     const ghost = ship
-    ghost.conditions = 'listing'
+    ghost.conditions = 'surrendered'
     const result = await parseShipFile(fileFromObject(makeShipFile(ship, {})))
     expect(result.ok).toBe(true)
     expect(result.ship?.conditions).toEqual([])

@@ -311,9 +311,13 @@ export function migrateLegacySessionHistory(ship) {
  * Coerce `conditions` into a deduplicated array of known persistent ids.
  * Older save files predate this field; tolerate that as well as junk values.
  *
- * Legacy ids land here too — pre-v1.0.2 saves used `stricken-colors` for what
- * the rulebook calls "surrendered" (PDF p. 190). We translate it on read so
- * those captains' chips don't disappear in the rename.
+ * Legacy ids are translated on read:
+ *  - `stricken-colors` → `surrendered` (pre-v1.0.2 rename)
+ *
+ * Retired ids — values ShipSync used to support but no longer does — are
+ * silently dropped without surfacing a warning, since the deprecation is
+ * intentional, not user error. Unknown values that aren't on the retired
+ * list still land in the `Dropped …` warning toast.
  *
  * @param {unknown} raw
  * @param {import('../domain/validators.js').ValidationIssue[]} issues
@@ -334,6 +338,9 @@ function sanitizePersistentConditions(raw, issues) {
   const aliasMap = {
     'stricken-colors': 'surrendered',
   }
+  // Retired in v1.0.5: dropped Listing as a persistent chip; it wasn't a real
+  // rule and the room never used it. Silent so old saves don't bark on load.
+  const retiredSet = new Set(['listing'])
   const seen = new Set()
   /** @type {import('../domain/types.js').PersistentShipCondition[]} */
   const out = []
@@ -343,6 +350,7 @@ function sanitizePersistentConditions(raw, issues) {
       droppedUnknown++
       continue
     }
+    if (retiredSet.has(value)) continue
     const canonical = aliasMap[value] ?? /** @type {any} */ (value)
     if (!knownSet.has(canonical)) {
       droppedUnknown++

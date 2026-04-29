@@ -62,7 +62,7 @@
   const PURSUIT_HINT =
     "A lightweight chase tracker — Gap is squares of space between pursuer and quarry. 0 means caught and the fight starts; 10+ means the quarry slips away. Speed differences each round move the Gap."
   const TIMER_HINT =
-    "Rounds of free running before the chase resolves on its own (PDF p. 181). The default is 6; the GM can shorten or lengthen it based on how close the quarry is to safe haven. Tick it down each round."
+    "Rounds of free running before the chase resolves on its own. The default is 6; shorten or lengthen at the table based on how close the quarry is to safe haven. Tick it down each round."
   const ESCAPE_HINT =
     "Free-text reminder of the escape window: a port to reach, a storm closing in, a portal opening. Whatever resolves the chase besides catching up."
 

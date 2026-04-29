@@ -9,7 +9,7 @@
   import NumberStepper from '../../ui/NumberStepper.svelte'
   import RuleTooltip from '../../ui/RuleTooltip.svelte'
   import { setShipSupplies } from '../../state/workspace.svelte.js'
-  import { supplyCapsForShip, shipTypeProfileFor } from '../../domain/derivations.js'
+  import { supplyCapsForShip } from '../../domain/derivations.js'
 
   let { ship } = $props()
 
@@ -19,14 +19,13 @@
   // gates the stepper, so a captain trying to over-stuff a Sloop's hold
   // gets stopped at the rulebook value instead of running up to 999.
   let caps = $derived(supplyCapsForShip(ship))
-  let isCanonicalType = $derived(shipTypeProfileFor(ship.type) != null)
 
   const TRACKS = /** @type {const} */ ([
     {
       key: 'grub',
       label: 'Grub',
-      hint: 'Food and water. Burned each travel leg to feed the crew — a Cook earns their keep here.',
-      helpText: 'Hits zero and the crew starts taking casualties between ports.',
+      hint: 'Food and water. Spent each travel leg to sustain the crew.',
+      helpText: 'Start taking casualties if you run out of food.',
       // The two consumable tracks tint amber at zero per the v0.3 audit fold-in:
       // Heuristic 1 says the empty bin should announce itself rather than read
       // the same as a healthy "0 of 50".
@@ -35,15 +34,15 @@
     {
       key: 'grog',
       label: 'Grog',
-      hint: 'The morale ration. One unit goes down each leg whether the crew is happy or grumbling.',
-      helpText: 'Run dry and morale slips before the next fight.',
+      hint: 'Alcohol keeps spirits high.',
+      helpText: 'Run dry and morale will suffer.',
       warnAtZero: true,
     },
     {
       key: 'gear',
       label: 'Gear',
-      hint: "Spare parts, line, canvas, and the like. With a Shipwright aboard you can spend it for hull repairs at sea; otherwise it waits for port.",
-      helpText: 'No penalty at zero — just no patch kit when you need one.',
+      hint: 'Used for ship repairs — sails, rope, wood, and so on.',
+      helpText: "You normally needn't spend gear while traveling, save for emergency repairs.",
       warnAtZero: false,
     },
   ])
@@ -60,7 +59,7 @@
       {@const value = ship.supplies[track.key]}
       {@const cap = caps[track.key]}
       {@const tone = track.warnAtZero && value === 0 ? 'amber' : 'neutral'}
-      {@const capLabel = isCanonicalType ? `${ship.type} cap` : `${ship.size} hull cap`}
+      {@const capLabel = `${ship.type || ship.size} cap`}
       <RuleTooltip hint={track.hint} display="block">
         <Field label={track.label} helpText={`${track.helpText} ${capLabel}: ${cap}.`}>
           <NumberStepper

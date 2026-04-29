@@ -174,7 +174,7 @@
 <Dialog
   bind:open
   title="Shore leave"
-  description="Refit selected ships in one motion — restore hull, top up supplies, and optionally clear scene conditions. Commits as a single undoable step."
+  description="Refit selected ships in a single step — restore hull, top up supplies, and optionally clear scene conditions."
   onClose={close}
   size="lg"
 >

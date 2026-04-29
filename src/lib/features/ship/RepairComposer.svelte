@@ -84,7 +84,7 @@
   })
 
   const COMPOSER_HINT =
-    "Restore hull, optionally spending supplies in the same breath. Hull is capped at how much headroom the ship has; supply costs are capped at what's actually in the hold. The Source field rides into the log entry."
+    'Spend resources and repair damage, then commit it all at once.'
 </script>
 
 <div class="flex flex-col gap-3 rounded-md border border-sea-200 bg-sea-50/40 p-3">
@@ -105,7 +105,7 @@
     </span>
   </header>
 
-  <Field label="Hull restored" helpText={headroom > 0 ? `Up to +${headroom} headroom.` : 'Already at full HP.'}>
+  <Field label="Hull restored" helpText={headroom > 0 ? `Up to +${headroom}` : 'Already at full HP.'}>
     <NumberStepper
       ariaLabel="Hull restored"
       bind:value={hullRepaired}
@@ -163,7 +163,7 @@
       type="text"
       bind:value={source}
       maxlength="80"
-      placeholder="e.g. shore party, carpenter's work"
+      placeholder="e.g. shore leave, Shipwright's work"
       class="w-full px-3 py-2 rounded-md border border-surface-300 bg-surface-50 text-sm text-ink-900"
     />
   </Field>

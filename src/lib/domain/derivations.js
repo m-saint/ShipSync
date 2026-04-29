@@ -784,14 +784,14 @@ export function sumImageBytes(images) {
  * Centralizing here keeps copy consistent across views.
  */
 export const NauticalCopy = Object.freeze({
-  emptyWorkspaceTitle: 'No ships at anchor.',
-  emptyWorkspaceBody: 'Load a ship from a save file or charter a fresh vessel to begin.',
-  emptyDetailTitle: 'Pick a ship, captain.',
-  emptyDetailBody: 'Select a vessel from the rail to inspect her decks.',
-  emptyLogTitle: 'No wake yet.',
+  emptyWorkspaceTitle: 'No ships assigned.',
+  emptyWorkspaceBody: 'Load a ship from a save file or assign a new ship to begin.',
+  emptyDetailTitle: 'Choose your ship.',
+  emptyDetailBody: 'Select a ship from your fleet to inspect it.',
+  emptyLogTitle: 'Smooth sailing.',
   emptyLogBody: 'Each change you commit to a ship lists here in order. Undo and redo from the toolbar at any time.',
   emptyOtherShipsTitle: 'Open seas.',
-  emptyOtherShipsBody: 'No vessels sighted. Add a sighting when one comes within view.',
+  emptyOtherShipsBody: 'No ships sighted. Add one when it comes into view.',
 })
 
 /**

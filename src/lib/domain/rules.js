@@ -95,32 +95,24 @@ export const SECONDARY_STATIONS = STATIONS.filter((s) => !KEY_STATIONS.includes(
  * Persistent ship conditions ride along in `.shipsync.json`: they describe
  * state that's still relevant the next time the player loads the ship.
  *
- * `surrendered` lines up with Strike Colors / Surrender on page 190 — the
- * ship has yielded the fight. Distinct from "no flag flown" (intentional
- * concealment with `flyingId === null`) because surrender is a public act
- * that signals into the next session.
- *
- * `listing` is a ShipSync convenience for "the hull's been hit hard enough
- * that it sits low and lopsided." The rulebook doesn't define a discrete
- * "listing" status; we keep it as a player-set flag for at-a-glance hull
- * condition since the chip is genuinely useful at the table.
+ * `surrendered` lines up with Strike Colors / Surrender — the ship has
+ * yielded the fight. Distinct from "no flag flown" (intentional concealment
+ * with `flyingId === null`) because surrender is a public act that signals
+ * into the next session.
  *
  * @type {import('./types.js').PersistentShipCondition[]}
  */
-export const PERSISTENT_SHIP_CONDITIONS = ['listing', 'surrendered']
+export const PERSISTENT_SHIP_CONDITIONS = ['surrendered']
 
 /** @type {Record<import('./types.js').PersistentShipCondition, string>} */
 export const PERSISTENT_CONDITION_LABELS = {
-  listing: 'Listing',
   surrendered: 'Surrendered',
 }
 
 /** @type {Record<import('./types.js').PersistentShipCondition, string>} */
 export const PERSISTENT_CONDITION_HINTS = {
-  listing:
-    'Hull leaning low and lopsided. House-rule chip — flip it on after a heavy hit; clear it once the shipwright patches things up.',
   surrendered:
-    'Colors struck (page 190). The ship has yielded the fight. Different from flying no flag (which can be intentional concealment); surrender is public and carries into the next session.',
+    'A surrendered ship will wait to be boarded by the victors.',
 }
 
 /**
@@ -148,11 +140,9 @@ export const SCENE_CONDITION_LABELS = {
 /** @type {Record<import('./types.js').SceneShipCondition, string>} */
 export const SCENE_CONDITION_HINTS = {
   heeling:
-    'Leaning hard from the wind or a tight turn. Gunnery suffers this round.',
-  'in-irons':
-    "Caught with the bow into the wind — no way on. The helmsperson has to fall off before you'll move again.",
-  'crossing-t':
-    "Lined up across an enemy's bow or stern. A full broadside answers nothing in return.",
+    'The wind leans ships over, providing a better firing angle to the upwind ship.',
+  'in-irons': 'Caught with the bow into the wind.',
+  'crossing-t': "Lined up across an enemy's bow or stern.",
 }
 
 /** @type {Record<import('./types.js').StationKey, string>} */

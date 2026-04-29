@@ -85,7 +85,7 @@
 
   {#if mounts.length === 0}
     <p class="text-[11px] text-ink-500 italic px-0.5">
-      No mounts yet. Click below to add one.
+      No weapons yet. Click below to add one.
     </p>
   {:else}
     <ul class="flex flex-col gap-1.5" role="list">
@@ -142,6 +142,6 @@
     class="self-start text-[11px] uppercase tracking-wide text-brass-700 hover:text-brass-900 underline-offset-2 hover:underline"
     onclick={() => addShipWeaponMount(ship.id, side)}
   >
-    + Add mount
+    + Add weapon
   </button>
 </div>

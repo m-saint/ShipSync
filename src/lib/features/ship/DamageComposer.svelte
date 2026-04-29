@@ -79,8 +79,7 @@
     if (confirming && !hasAnyDamage) confirming = false
   })
 
-  const COMPOSER_HINT =
-    "Build the full hit, then commit it once. Each value is the magnitude that lands; we clamp at the ship's current totals so you can't overshoot below zero. The Source field rides into the log line so 'broadside' or 'storm damage' shows up next to the deltas."
+  const COMPOSER_HINT = 'Build the full hit, then commit it all at once.'
 </script>
 
 <div class="flex flex-col gap-3 rounded-md border border-crimson-200 bg-crimson-50/40 p-3">
@@ -113,7 +112,7 @@
         autofocus
       />
     </Field>
-    <Field label="Mettle" helpText="Captain's nerve hit.">
+    <Field label="Mettle" helpText="Morale hit.">
       <NumberStepper
         ariaLabel="Mettle damage"
         bind:value={mettle}
@@ -148,14 +147,14 @@
   <Field
     label="Source"
     htmlFor={`damage-source-${ship.id}`}
-    helpText="Optional. Names the cause in the log entry."
+    helpText="Optional. Names the source in the log entry."
   >
     <input
       id={`damage-source-${ship.id}`}
       type="text"
       bind:value={source}
       maxlength="80"
-      placeholder="e.g. Black Spear broadside"
+      placeholder="e.g. USS Enterprise broadside"
       class="w-full px-3 py-2 rounded-md border border-surface-300 bg-surface-50 text-sm text-ink-900"
     />
   </Field>

@@ -53,9 +53,9 @@
   )
 
   const SPEED_HINT =
-    'Knots is the in-fiction speed; squares is how far she moves on the play surface this round.'
+    'Knots is the in-fiction speed; squares is how far a ship can move in combat.'
   const WEAPONS_HINT =
-    'Each side lists the actual mounts (and how many slots they occupy). The slot total above each list is the sum of those mounts. Heavy-weapons eligibility unlocks the larger gun classes — toggle off if your ship rejects them.'
+    'Each section lists the actual weapons (and how many slots they occupy). Only warships can carry heavy weapons.'
 </script>
 
 <section class="surface-card p-4 sm:p-5 flex flex-col gap-4">
@@ -75,12 +75,12 @@
           onblur={commitName}
           autocomplete="off"
           maxlength="80"
-          placeholder="The Black Spear"
+          placeholder="RLS Legacy"
         />
       </Field>
     </div>
 
-    <Field label="Type" htmlFor="profile-type" helpText="Sloop, Frigate, Galleon, &c. Free text.">
+    <Field label="Type" htmlFor="profile-type" helpText="Sloop, Frigate, Galleon, etc.">
       <input
         id="profile-type"
         type="text"
@@ -93,7 +93,7 @@
       />
     </Field>
 
-    <Field label="Mobility" htmlFor="profile-mobility" helpText="High turns sharp; balanced is the default; low is broad and slow.">
+    <Field label="Mobility" htmlFor="profile-mobility" helpText="Determines how quickly and sharply a ship can turn.">
       <select
         id="profile-mobility"
         class="w-full h-10 px-3 rounded-md border border-surface-300 bg-surface-50 text-sm text-ink-900"
@@ -107,7 +107,7 @@
     </Field>
 
     <RuleTooltip hint={SPEED_HINT} display="block">
-      <Field label="Speed" helpText="Both update independently — set whichever you track at the table.">
+      <Field label="Speed" helpText="Both update independently — track separate buffs to travel/combat speed.">
         <div class="flex items-center gap-3">
           <div class="flex items-center gap-1.5 text-sm text-ink-700">
             <NumberStepper
@@ -135,7 +135,7 @@
       </Field>
     </RuleTooltip>
 
-    <Field label="Hull (current / max)" helpText="Current is clamped to max. Lower max to scuttle a ship; raise it for refits.">
+    <Field label="Hull (current / max)" helpText="Raise or lower the maximum health of your ship.">
       <div class="flex items-center gap-3">
         <div class="flex items-center gap-1.5 text-sm text-ink-700">
           <NumberStepper
@@ -162,7 +162,7 @@
       </div>
     </Field>
 
-    <Field label="Explosion DC" helpText="Higher means tougher when fires get loose.">
+    <Field label="Explosion DC" helpText="Smaller ships explode faster than bigger ships.">
       <NumberStepper
         ariaLabel="Explosion DC"
         value={ship.explosionDC}
@@ -175,7 +175,7 @@
 
     <div class="sm:col-span-2">
       <RuleTooltip hint={WEAPONS_HINT} display="block">
-        <Field label="Weapon slots & mounts">
+        <Field label="Weapon slots">
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
             {#each [{ key: 'bow', label: 'Bow' }, { key: 'port', label: 'Port' }, { key: 'starboard', label: 'Starboard' }, { key: 'stern', label: 'Stern' }] as slot (slot.key)}
               <div class="flex flex-col gap-1.5 px-3 py-2.5 rounded-md border border-surface-300 bg-surface-50">
@@ -209,7 +209,7 @@
   </div>
 
   <div class="border-t border-surface-200 pt-4">
-    <Field label="Ship portrait" helpText="Bundled into the save file as a data URL. Larger images make save files heavier.">
+    <Field label="Ship portrait" helpText="Bundled into the save file.">
       <div class="flex items-center gap-3">
         {#if portraitDataUrl}
           <img

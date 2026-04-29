@@ -1268,36 +1268,33 @@ describe('ship condition mutators (v0.6)', () => {
     const { id } = addBasic({ name: 'Wavecutter' })
     expect(workspace.ships[id].conditions).toEqual([])
 
-    setShipPersistentCondition(id, 'listing', true)
-    expect(workspace.ships[id].conditions).toEqual(['listing'])
-
     setShipPersistentCondition(id, 'surrendered', true)
-    expect(workspace.ships[id].conditions).toEqual(['listing', 'surrendered'])
-
-    setShipPersistentCondition(id, 'listing', false)
     expect(workspace.ships[id].conditions).toEqual(['surrendered'])
+
+    setShipPersistentCondition(id, 'surrendered', false)
+    expect(workspace.ships[id].conditions).toEqual([])
   })
 
   it('setShipPersistentCondition is a no-op when the state already matches', () => {
     const { id } = addBasic()
     const baseline = undoableCount()
-    setShipPersistentCondition(id, 'listing', false) // already off
+    setShipPersistentCondition(id, 'surrendered', false) // already off
     expect(undoableCount()).toBe(baseline)
 
-    setShipPersistentCondition(id, 'listing', true)
+    setShipPersistentCondition(id, 'surrendered', true)
     const afterToggle = undoableCount()
-    setShipPersistentCondition(id, 'listing', true) // already on
+    setShipPersistentCondition(id, 'surrendered', true) // already on
     expect(undoableCount()).toBe(afterToggle)
   })
 
   it('setShipPersistentCondition writes a Captain’s log line on the ship', () => {
     const { id } = addBasic({ name: 'Wavecutter' })
-    setShipPersistentCondition(id, 'listing', true)
+    setShipPersistentCondition(id, 'surrendered', true)
     const action = recentActions(1)[0]
-    expect(action.summary).toBe('Wavecutter marked listing.')
+    expect(action.summary).toBe('Wavecutter marked surrendered.')
     expect(action.shipId).toBe(id)
-    setShipPersistentCondition(id, 'listing', false)
-    expect(recentActions(1)[0].summary).toBe('Wavecutter no longer listing.')
+    setShipPersistentCondition(id, 'surrendered', false)
+    expect(recentActions(1)[0].summary).toBe('Wavecutter no longer surrendered.')
   })
 
   it('setShipSceneCondition stores values keyed by either kind of ship id', () => {
@@ -1354,12 +1351,12 @@ describe('ship condition mutators (v0.6)', () => {
 
   it('persistent conditions survive undo and redo', () => {
     const { id } = addBasic()
-    setShipPersistentCondition(id, 'listing', true)
-    expect(workspace.ships[id].conditions).toEqual(['listing'])
+    setShipPersistentCondition(id, 'surrendered', true)
+    expect(workspace.ships[id].conditions).toEqual(['surrendered'])
     undo()
     expect(workspace.ships[id].conditions).toEqual([])
     redo()
-    expect(workspace.ships[id].conditions).toEqual(['listing'])
+    expect(workspace.ships[id].conditions).toEqual(['surrendered'])
   })
 
   it('scene conditions survive undo and redo', () => {
@@ -1485,7 +1482,7 @@ describe('endScene (v0.7)', () => {
     setShipMettleCurrent(id, 1)
     setShipCrewCurrent(id, 3)
     setShipSupplies(id, { grub: 4, grog: 1, gear: 2 })
-    setShipPersistentCondition(id, 'listing', true)
+    setShipPersistentCondition(id, 'surrendered', true)
     setSceneRound(4)
 
     endScene()
@@ -1495,7 +1492,7 @@ describe('endScene (v0.7)', () => {
     expect(ship.mettle.current).toBe(1)
     expect(ship.crew.current).toBe(3)
     expect(ship.supplies).toMatchObject({ grub: 4, grog: 1, gear: 2 })
-    expect(ship.conditions).toContain('listing')
+    expect(ship.conditions).toContain('surrendered')
     // v1.0.4: every commit through this test stamps `lastModifiedAt` on
     // the player ship, so the post-endScene state should still reflect a
     // dirty hull (the previous "sessionHistory has entries" assertion).

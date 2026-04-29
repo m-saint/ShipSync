@@ -2916,16 +2916,15 @@ export function applyFlagToShips(sourceShipId, sourceFlagId, targetShipIds, opti
 
 // ---------- Ship condition mutators (v0.6) ----------
 // Conditions split by persistence:
-//  - Persistent conditions (`listing`, `surrendered`) live on the player
-//    Ship and ride along in `.shipsync.json`. `surrendered` lines up with
-//    Strike Colors / Surrender on PDF page 190; `listing` is a ShipSync
-//    house-rule chip for hulls that have been hit hard.
+//  - Persistent conditions (`surrendered`) live on the player Ship and ride
+//    along in `.shipsync.json`. `surrendered` lines up with Strike Colors /
+//    Surrender from the rulebook.
 //  - Scene conditions (`heeling`, `in-irons`, `crossing-t`) live in
 //    `workspace.scene.shipConditions[shipId]` and ride along only in the
-//    autosave snapshot. They describe tactical positioning / wind state
-//    defined on PDF page 187; loading a fresh workspace clears them.
+//    autosave snapshot. They describe tactical positioning / wind state;
+//    loading a fresh workspace clears them.
 //
-// Player ships can carry both kinds at once (e.g. listing AND in irons).
+// Player ships can carry both kinds at once (e.g. surrendered AND in irons).
 // Scene ships can only carry scene conditions — they're ephemeral by
 // definition, and persistent state on a non-player hull would never be read.
 
@@ -3019,7 +3018,6 @@ export function setShipSceneCondition(anyShipId, condition, on) {
  * @param {string} id
  */
 function formatConditionLabel(id) {
-  if (id === 'listing') return 'listing'
   if (id === 'surrendered') return 'surrendered'
   if (id === 'stricken-colors') return 'surrendered'
   if (id === 'heeling') return 'heeling'

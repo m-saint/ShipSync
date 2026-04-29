@@ -63,7 +63,7 @@
 <Dialog
   bind:open
   title="Preferences"
-  description="Tunes that follow you between sessions on this device. Saved automatically."
+  description="Settings that persist across sessions on this device. Saved automatically."
   size="md"
   onClose={handleClose}
 >

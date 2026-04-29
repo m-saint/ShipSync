@@ -93,17 +93,17 @@
   }))
 
   const METTLE_HINT =
-    "Mettle is the captain's nerve — your dice for moves, saves, and standing your ground. Spend it for stunts and grit; reset to baseline (4 + captain rank + flying flag's total reputation) at refit or whenever the table calls for a fresh fight."
+    "The captain's nerve, and the morale of the crew."
   const METTLE_NOTES_HINT =
     "Free-text scratchpad. Why is mettle here? Spent on what? What restores it? Persists with the ship file."
   const CREW_HINT =
-    "Crew runs the stations. Take casualties down; recruit at port to bring it back up. At or below the skeleton mark, the ship is short-handed."
+    "Crew runs the stations. At or below the skeleton mark, the ship is short-staffed."
   const CREW_MAX_HINT =
-    "Set during refit or recruitment — not something you change mid-fight. Filling all stations earns +1 speed at the table. Lowering max clamps current down to match."
+    "Set during refit or recruitment, not in the middle of a fight."
   const CREW_SKELETON_HINT =
-    "The threshold at or below which the ship runs short-handed (PDF p. 198 — defaults to half the max crew). Crossing it drops your action allowance from three to one this round."
+    "The threshold at or below which the ship becomes short-staffed."
   const FIRES_HINT =
-    "Each fire makes the magazine roll harder. One is manageable; three or more and the explosion check is closing in fast."
+    "Each fire adds to the chances of an explosion."
 </script>
 
 <section class="surface-card p-4 sm:p-5 flex flex-col gap-4">
@@ -199,7 +199,7 @@
       <RuleTooltip hint={CREW_MAX_HINT} display="block">
         <Field
           label="Crew max"
-          helpText="At full complement the ship picks up +1 speed. Lowering max clamps current down to match."
+          helpText="Carrying a full crew grants additional benefits."
         >
           <NumberStepper
             ariaLabel="Crew max"
@@ -215,7 +215,7 @@
       <RuleTooltip hint={CREW_SKELETON_HINT} display="block">
         <Field
           label="Skeleton mark"
-          helpText="At or below this line the ship is short-handed — only one of Movement / Attack / Status this round."
+          helpText="At or below this line the ship is short-staffed."
         >
           <NumberStepper
             ariaLabel="Skeleton crew mark"
@@ -233,7 +233,7 @@
   <footer class="border-t border-surface-200 pt-3 flex flex-col gap-3">
     <div class="flex items-center justify-between gap-2 flex-wrap">
       <span class="text-[11px] text-ink-500 leading-snug">
-        Whole event in one commit — hits multiple resources, lands one log line.
+        Whole event in one commit
       </span>
       <div class="flex items-center gap-2">
         <Button

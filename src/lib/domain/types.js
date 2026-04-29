@@ -18,14 +18,13 @@
  *
  * Ship conditions split by persistence class:
  *  - Persistent conditions live on the Ship and ride along in `.shipsync.json`.
- *    They describe state that's still meaningful next session — listing hull,
- *    surrender, etc.
+ *    They describe state that's still meaningful next session — surrender, etc.
  *  - Scene conditions live in workspace.scene.shipConditions, in the autosave
  *    snapshot only. They reset every time the player loads a fresh workspace.
  *    These describe tactical positioning / wind state that only matters
- *    while a fight is on. Each maps to a defined PDF rule on page 187.
+ *    while a fight is on.
  *
- * @typedef {'listing'|'surrendered'} PersistentShipCondition
+ * @typedef {'surrendered'} PersistentShipCondition
  * @typedef {'heeling'|'in-irons'|'crossing-t'} SceneShipCondition
  */
 
@@ -192,7 +191,7 @@
  * @property {string|null} portraitImageId
  * @property {PlayerCharacter|null} [playerCharacter]   // legacy v1.0 field — folded into officers.captain by `migrateLegacyPlayerCharacter` on load. Optional so new ships don't carry it.
  * @property {string|null} lastModifiedAt              // v1.0.4 — ISO of the most recent in-workspace mutation. Drives the "unsaved" indicator. Replaces the per-ship `sessionHistory` field.
- * @property {PersistentShipCondition[]} conditions     // §6 persistent state: listing, surrendered. Rides along in saved ship file.
+ * @property {PersistentShipCondition[]} conditions     // §6 persistent state: surrendered. Rides along in saved ship file.
  */
 
 /**

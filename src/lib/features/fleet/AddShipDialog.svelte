@@ -200,8 +200,8 @@
 
 <Dialog
   bind:open
-  title="Charter a vessel"
-  description="Name her, set her bones, and seed the captain on the bridge."
+  title="Assign a ship"
+  description="Claim her, name her, and prepare to set sail."
   onClose={close}
   size="lg"
 >
@@ -221,7 +221,7 @@
           bind:value={form.name}
           autocomplete="off"
           maxlength="80"
-          placeholder="The Black Spear"
+          placeholder="RLS Legacy"
           required
           onblur={() => (nameTouched = true)}
         />
@@ -256,7 +256,7 @@
       label="Type"
       htmlFor="add-ship-type"
       helpText={typeProfile
-        ? `Recognized — auto-filling stats from the ${form.type} profile (PDF).`
+        ? `Recognized — auto-filling stats from the ${form.type} profile.`
         : 'Sloop, Frigate, Galleon, etc. Recognized types auto-fill mobility and stats.'}
     >
       <input
@@ -343,7 +343,7 @@
         htmlFor="add-ship-crew"
         helpText={form.crewMaxIsCustom
           ? `Custom — skeleton crew defaults to ${typeProfile?.crewSkeleton ?? skeletonCrewFor(form.crewMax)}.`
-          : `Auto-filled from ${typeProfile ? form.type : form.size}. Skeleton crew defaults to ½ of the max (PDF p. 198).`}
+          : `Auto-filled from ${typeProfile ? form.type : form.size}. Skeleton crew defaults to half of the max.`}
       >
         <NumberStepper
           id="add-ship-crew"

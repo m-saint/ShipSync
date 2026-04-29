@@ -66,19 +66,19 @@
   }
 
   const BOARDED_BY_HINT =
-    "Free-text reminder of who's locked alongside you in a boarding action — pirate flag, customs cutter, that big black ship from the prologue. Leave blank when nobody is. While the field is set, the ship is locked at speed 0 and can't make way (PDF p. 196)."
+    "This ship is locked alongside you in a boarding action."
 
   const HULL_HINT =
-    "Hull is total damage she can soak before she founders. Hits that meet or beat the damage threshold can stagger crew or break stations."
+    "The total damage a ship can withstand."
   const METTLE_HINT =
-    "Mettle is the captain's nerve — your dice for moves, saves, and standing your ground. Spend it for stunts and grit; reset to baseline (4 + captain rank + flying flag's total reputation) at refit."
+    "The captain's nerve, and the morale of the crew."
   let crewHint = $derived(
     skeleton
-      ? "At or below the skeleton mark she's running short-handed; the bridge can take only one of Movement / Attack / Status this round. Wounds, swims, and boarding all draw from this pool."
-      : "Crew runs the stations. Skeleton mark is the line at or below which she's short-handed; full crew gets all three action phases this turn (and +1 speed when every station's filled).",
+      ? "At or below the skeleton mark, your ship is running less efficiently."
+      : "Crew runs the stations. Skeleton mark is the line at or below which a ship is short-staffed.",
   )
   const EXPLOSION_HINT =
-    "When fires get loose, every fire on board makes the magazine roll harder. Failing this DC means a very bad day."
+    "A ship can explode if a fire spreads to its powder stores."
 
   /** Friendlier last-saved phrasing — exact ISO is on the <time> tag for accessibility. */
   function describeSavedAt(/** @type {string|null} */ iso) {

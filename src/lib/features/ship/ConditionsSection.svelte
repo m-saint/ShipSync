@@ -4,11 +4,11 @@
    * can pick up during a fight.
    *
    * Two persistence classes:
-   *  - **Persistent** (Listing, Stricken colors): live on `ship.conditions[]`
-   *    and ride along in the saved ship file. They describe damage / surrender
-   *    state the player will still want to remember next session.
-   *  - **Scene-only** (Heeling, In Irons, Crossing the T, Becalmed): live on
-   *    `workspace.scene.shipConditions[ship.id]` and ride along only in the
+   *  - **Persistent** (Surrendered): lives on `ship.conditions[]` and rides
+   *    along in the saved ship file. Describes state the player will still
+   *    want to remember next session.
+   *  - **Scene-only** (Heeling, In Irons, Crossing the T): lives on
+   *    `workspace.scene.shipConditions[ship.id]` and rides along only in the
    *    autosave snapshot. Loading a fresh workspace resets them; that matches
    *    how a tactical positioning state evaporates as soon as the fight ends.
    *
@@ -71,8 +71,7 @@
       </span>
     </div>
     <p class="text-xs text-ink-500">
-      Sticks until something changes it — damage repaired, colors raised back up.
-      Travels with the ship file.
+      Damage repaired, colors raised back up. Travels with the ship file.
     </p>
     <ul class="flex flex-wrap gap-2">
       {#each PERSISTENT_SHIP_CONDITIONS as condition (condition)}
@@ -112,8 +111,7 @@
       </span>
     </div>
     <p class="text-xs text-ink-500">
-      Tactical and wind state. These ride along in the autosave snapshot but
-      never make it into the ship file — fresh load, fresh slate.
+      Tactical scene state. These do not persist across saves.
     </p>
     <ul class="flex flex-wrap gap-2">
       {#each SCENE_SHIP_CONDITIONS as condition (condition)}
