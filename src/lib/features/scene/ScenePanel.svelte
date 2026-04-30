@@ -40,10 +40,10 @@
   let { oncollapse = undefined } = $props()
 
   const PERSISTENCE_HINT =
-    "Scene state — round, phase, wind, weather gage, pursuit, sighted ships — is intentionally ephemeral. It rides along in the autosave snapshot so a refresh won't lose your place, but it's never written into the per-ship .shipsync.json files. Save those when you want to capture the ship itself."
+    "Scene state — round, phase, wind, weather gage, pursuit, sighted ships — does not persist across save files."
 
   const END_SCENE_HINT =
-    "Reset round, phase, wind, weather gage, pursuit, sighted ships, scene-only conditions, and any boarding pointers on your ships. Persistent ship state (HP, crew, fires, supplies, journal, persistent conditions) is left alone. Reversible with one Undo."
+    "Reset round, phase, wind, weather gage, pursuit, sighted ships, scene-only conditions, and any boarding pointers on your ships."
 
   // Surface a count of what will be cleared so the player can see what they're
   // committing to before they tap Confirm. Uses the live workspace state.

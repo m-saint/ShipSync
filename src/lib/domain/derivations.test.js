@@ -201,7 +201,7 @@ describe('officerCasualtyTally', () => {
 
   it('counts active only when both name and status are set', () => {
     const ship = makeShip()
-    ship.officers.captain.name = 'Iola Thorne'
+    ship.officers.captain.name = 'James Hook'
     // Officer with name still defaults to status='active', so should count as active.
     const tally = officerCasualtyTally(ship)
     expect(tally.active).toBe(1)

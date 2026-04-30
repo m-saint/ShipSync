@@ -119,7 +119,7 @@
           onblur={commitName}
           autocomplete="off"
           maxlength="80"
-          placeholder={station === 'captain' ? 'Captain Iola Thorne' : 'Officer name'}
+          placeholder={station === 'captain' ? 'Captain James Hook' : 'Officer name'}
         />
       </Field>
 
