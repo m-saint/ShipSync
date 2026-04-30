@@ -58,15 +58,15 @@
   let repTotal = $derived(flagTotalReputation(flag))
 
   const FALSE_HINT =
-    "Flying false colors — the ship is sailing under a banner that isn't really hers. Reputation gains (and losses) from this run land on whichever flag the players actually claim afterward, not on the disguise. Per-hull: one captain can fake it while the other flies true."
+    "Flying false colors — the ship is sailing under a banner that isn't really hers."
   const PIRATE_HINT =
-    "Marks this banner as the black-or-red pirate strain. Affects how other vessels read your intent."
+    "Your pirate flag — Affects how other vessels read your intent."
   const FACTION_HINT =
-    "Faction flags belong to an organization (a chartered nation, the Black Banner, a navy). Reputation on these flags belongs to the faction itself, not your ship — so the per-axis tally is hidden while the toggle is on."
+    "Faction flags belong to an organization. Reputation on these flags belongs to the faction itself, not your ship."
   const REP_HINT =
-    "Four independent tallies — Good, Evil, Lawful, Chaotic — each running upward from 0. The total across all four is your effective reputation at the table. Shared across every hull in the workspace flying this flag; edit it here and the others update automatically."
+    "Four independent values — Good, Evil, Lawful, Chaotic. The total across all four is your effective reputation at the table."
   const FLYING_HINT =
-    "Only one flag can fly at a time — that's the one strangers see when you crest the horizon. Lower colors to fly nothing — the flag stays in the locker."
+    "Only one flag can fly at a time. Lower colors to fly nothing."
 </script>
 
 <li
