@@ -132,27 +132,14 @@
 >
   {#if !ship}
     <div class="h-full flex items-center justify-center">
-      {#snippet icon()}
-        <svg width="56" height="56" viewBox="0 0 24 24" aria-hidden="true">
-          <path
-            d="M3 18l9 3 9-3M5 13l7-2 7 2M12 3v8m-4-3h8"
-            stroke="currentColor"
-            stroke-width="1.25"
-            fill="none"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-      {/snippet}
       {#snippet action()}
         <Button variant="primary" onclick={() => openDialog('add-ship')}>
-          Charter a vessel
+          Add a ship
         </Button>
       {/snippet}
       <EmptyState
         title={NauticalCopy.emptyDetailTitle}
         body={NauticalCopy.emptyDetailBody}
-        icon={icon}
         action={action}
       />
     </div>

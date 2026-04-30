@@ -176,7 +176,7 @@
           onblur={commitNotes}
           maxlength="600"
           placeholder={station === 'captain'
-            ? 'e.g. Speaks Coastalese; left hand bandaged since the Skerry raid.'
+            ? 'Notes for this station.'
             : 'Notes for this station.'}
         ></textarea>
       </Field>

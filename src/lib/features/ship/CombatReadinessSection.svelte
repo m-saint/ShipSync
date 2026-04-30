@@ -1,7 +1,7 @@
 <script>
   /**
    * CombatReadinessSection — the editor for the player ship's during-combat
-   * resources: Mettle (current + notes), Crew (current; max & skeleton tucked
+   * resources: Mettle (current), Crew (current; max & skeleton tucked
    * into a collapsed config block), and Fires.
    *
    * Mutators behind these steppers (setShipMettleCurrent / setShipCrewCurrent /
@@ -27,7 +27,6 @@
     setShipCrewSkeleton,
     setShipFires,
     setShipMettleCurrent,
-    setShipMettleNotes,
   } from '../../state/workspace.svelte.js'
   import {
     actionsAllowedThisTurn,
@@ -58,18 +57,6 @@
   let skeleton = $derived(isSkeletonStaffed(ship))
   let actionAllowance = $derived(actionsAllowedThisTurn(ship))
 
-  // Notes: writable $derived backed by ship.mettle.notes. Commit on blur to
-  // match the textarea pattern used by player-character traits — we never
-  // want to fire a commit per keystroke for prose fields.
-  let notesDraft = $derived(ship.mettle?.notes ?? '')
-
-  function commitNotes() {
-    if (notesDraft !== (ship.mettle?.notes ?? '')) {
-      setShipMettleNotes(ship.id, notesDraft)
-    }
-    notesDraft = ship.mettle?.notes ?? ''
-  }
-
   // Tone derivations — Heuristic 1 (system status): a stat at 0 (or below the
   // skeleton mark) shouldn't read the same as a healthy "0 of 50". Crimson is
   // reserved for fires escalating into "magazine in trouble" territory.
@@ -94,8 +81,6 @@
 
   const METTLE_HINT =
     "The captain's nerve, and the morale of the crew."
-  const METTLE_NOTES_HINT =
-    "Free-text scratchpad. Why is mettle here? Spent on what? What restores it? Persists with the ship file."
   const CREW_HINT =
     "Crew runs the stations. At or below the skeleton mark, the ship is short-staffed."
   const CREW_MAX_HINT =
@@ -161,23 +146,6 @@
       </Field>
     </RuleTooltip>
   </div>
-
-  <RuleTooltip hint={METTLE_NOTES_HINT} display="block">
-    <Field
-      label="Mettle notes"
-      htmlFor={`mettle-notes-${ship.id}`}
-      helpText="Spent on what, restored how — whatever the table will care about next round."
-    >
-      <textarea
-        id={`mettle-notes-${ship.id}`}
-        rows="3"
-        class="w-full px-3 py-2 rounded-md border border-surface-300 bg-surface-50 text-sm text-ink-900 resize-y"
-        bind:value={notesDraft}
-        onblur={commitNotes}
-        placeholder="(empty)"
-      ></textarea>
-    </Field>
-  </RuleTooltip>
 
   <details class="border-t border-surface-200 pt-3 group">
     <summary class="text-sm font-medium text-ink-700 cursor-pointer list-none flex items-center gap-2">

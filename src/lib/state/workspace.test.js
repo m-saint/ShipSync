@@ -463,14 +463,14 @@ describe('pursuit tracker', () => {
       pursuerId: sceneId,
       quarryId: playerId,
       gap: 4.7,
-      escapeCondition: 'reach Port Skerry',
+      escapeCondition: 'e.g. SURVIVE',
     })
     expect(undoableCount()).toBe(baseline + 1)
     expect(workspace.scene.pursuit).toMatchObject({
       pursuerId: sceneId,
       quarryId: playerId,
       gap: 4,
-      escapeCondition: 'reach Port Skerry',
+      escapeCondition: 'e.g. SURVIVE',
     })
 
     setPursuit({ gap: -3 })
@@ -1374,9 +1374,9 @@ describe('officer notes (v0.7)', () => {
   it('setOfficerNotes commits and logs an "Added" entry on first write', () => {
     const { id } = addBasic({ name: 'Wavecutter' })
     const baseline = undoableCount()
-    setOfficerNotes(id, 'captain', 'Speaks Coastalese, dislikes seabirds.')
+    setOfficerNotes(id, 'captain', 'Notes for this station.')
 
-    expect(workspace.ships[id].officers.captain.notes).toBe('Speaks Coastalese, dislikes seabirds.')
+    expect(workspace.ships[id].officers.captain.notes).toBe('Notes for this station.')
     expect(undoableCount()).toBe(baseline + 1)
     const summary = recentActions(1)[0].summary
     expect(summary).toMatch(/Added/)

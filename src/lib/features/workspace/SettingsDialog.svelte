@@ -68,7 +68,7 @@
   onClose={handleClose}
 >
   <div class="flex flex-col gap-5">
-    <Field label="Color scheme" helpText="Dark mode swaps to a hand-tuned dark palette so dialogs, popovers, and portraits all follow along.">
+    <Field label="Color scheme" helpText="">
       <div
         class="inline-flex rounded-md border border-surface-300 bg-surface-50 p-0.5"
         role="radiogroup"
@@ -91,7 +91,7 @@
       </div>
     </Field>
 
-    <Field label="Density" helpText="Compact tightens ship and officer cards by ~25%. Useful on smaller screens or once a fleet exceeds half a dozen ships.">
+    <Field label="Density" helpText="">
       <div
         class="inline-flex rounded-md border border-surface-300 bg-surface-50 p-0.5"
         role="radiogroup"
@@ -116,7 +116,7 @@
 
     <Field
       label="Autosave cadence"
-      helpText="How long to wait after the last edit before writing a fresh autosave snapshot. A longer cadence reduces localStorage churn; a shorter one minimizes data loss on crash."
+      helpText=""
     >
       <div
         class="inline-flex flex-wrap rounded-md border border-surface-300 bg-surface-50 p-0.5"
@@ -141,7 +141,7 @@
 
     <Field
       label="Carry forward on Charter"
-      helpText="When chartering a fresh vessel, offer to copy the focused ship's bridge crew (officer names, ranks, statuses, notes, portraits) and current supplies onto the new ship. The Charter dialog still lets you opt out per-charter."
+      helpText=""
     >
       <label class="inline-flex items-center gap-2 text-sm font-medium text-ink-700">
         <input

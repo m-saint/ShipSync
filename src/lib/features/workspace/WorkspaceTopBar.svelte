@@ -33,9 +33,6 @@
 <header class="border-b border-surface-200 bg-surface-100/70 backdrop-blur-sm">
   <div class="px-4 py-3 flex items-center gap-4">
     <div class="flex items-center gap-2">
-      <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" class="text-brass-600">
-        <path d="M12 2v6m-6 0h12M3 14l9 7 9-7M3 14l3-6m12 0l3 6" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
       <h1 class="display text-lg leading-none">ShipSync</h1>
     </div>
 

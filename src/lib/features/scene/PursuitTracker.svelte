@@ -184,7 +184,7 @@
           bind:value={escapeDraft}
           onblur={commitEscape}
           maxlength="120"
-          placeholder="reach Port Skerry"
+          placeholder="e.g. SURVIVE"
           aria-label="Escape condition"
         />
       </label>
