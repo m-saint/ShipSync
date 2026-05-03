@@ -235,7 +235,7 @@
         ? 'Custom — auto-fill from the type profile is disabled.'
         : typeProfile
           ? `Auto-filled from ${form.type}.`
-          : 'determines default hull, crew, and explosion DC when no type is set.'}
+          : 'Drives default hull, crew, and explosion DC when no type is set.'}
     >
       <select
         id="add-ship-size"
