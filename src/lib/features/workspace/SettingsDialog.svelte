@@ -140,7 +140,7 @@
     </Field>
 
     <Field
-      label="Carry forward on Charter"
+      label="Carry forward when adding a ship"
       helpText=""
     >
       <label class="inline-flex items-center gap-2 text-sm font-medium text-ink-700">
