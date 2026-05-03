@@ -123,7 +123,12 @@
         />
       </Field>
 
-      <Field label="Rank" helpText="1–5. Captain rank feeds Mettle baseline.">
+      <Field
+        label="Rank"
+        helpText={station === 'captain'
+          ? '1–5. Captain rank feeds Mettle baseline.'
+          : '1–5.'}
+      >
         <NumberStepper
           ariaLabel="Rank"
           value={officer.rank}
