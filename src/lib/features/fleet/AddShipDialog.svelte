@@ -388,7 +388,7 @@
           bind:value={form.captainName}
           autocomplete="off"
           maxlength="80"
-          placeholder="Eira Thorne"
+          placeholder="James Hook"
         />
       </Field>
     </div>
