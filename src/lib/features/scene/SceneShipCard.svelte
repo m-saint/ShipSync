@@ -188,7 +188,7 @@
       bind:value={threatDraft}
       onblur={commitThreat}
       maxlength="200"
-      placeholder="mortars at close range; carries marines"
+      placeholder="reinforced hull; short-range explosives"
       aria-label={`Threat note for ${sceneShip.name}`}
     ></textarea>
   </label>
