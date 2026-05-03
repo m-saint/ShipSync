@@ -132,7 +132,7 @@
       {#if !confirming}
         <div class="flex items-center justify-between gap-2 flex-wrap">
           <span class="text-[11px] text-ink-500 leading-snug">
-            Done with the fight? End the scene to clear the round, sighted ships, and any boarding pointers.
+            End the scene to clear the round, sighted ships, and any boarding actions.
           </span>
           <RuleTooltip hint={END_SCENE_HINT} display="inline-flex">
             <Button
@@ -160,8 +160,7 @@
               : ''}.
           </p>
           <p class="text-[11px] text-ink-600">
-            Persistent ship state (HP, crew, fires, supplies, conditions, journal) stays.
-            Undo restores everything in one click.
+            HP, crew, fires, supplies, and conditions remain.
           </p>
           <div class="flex items-center justify-end gap-2">
             <Button variant="ghost" size="sm" onclick={cancelConfirm}>Cancel</Button>
