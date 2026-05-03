@@ -189,7 +189,7 @@
 
     pushToast({
       kind: 'success',
-      title: `Chartered ${form.name.trim()}.`,
+      title: `Added ${form.name.trim()}.`,
       body: `Hull ${form.hpMax} · Crew ${form.crewMax} · Explosion DC ${form.explosionDC}${carryOverNote}`,
     })
 
@@ -397,7 +397,7 @@
   {#snippet footer()}
     <Button variant="ghost" onclick={close}>Cancel</Button>
     <Button variant="primary" type="submit" disabled={!canSubmit} onclick={submit}>
-      Charter ship
+      Add ship
     </Button>
   {/snippet}
 </Dialog>
