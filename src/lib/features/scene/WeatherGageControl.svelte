@@ -22,9 +22,9 @@
   let selectedHolder = $derived(workspace.scene.weatherGageHolderId ?? NULL_HOLDER_VALUE)
 
   const WIND_HINT =
-    "Cardinal direction the wind is blowing toward. Nautically: a ship furthest upwind tends to hold the gage."
+    "Cardinal direction the wind is blowing toward."
   const HOLDER_HINT =
-    "Who's currently holding the Weather Gage. It can shift as ships maneuver. Use 'Drifting' when nobody clearly has it (e.g. everyone's in irons)."
+    "Who's currently holding the Weather Gage. It can shift as ships maneuver."
 
   function onHolderChange(event) {
     const value = event.currentTarget.value
@@ -64,7 +64,7 @@
           onchange={onHolderChange}
           aria-label="Weather gage holder"
         >
-          <option value={NULL_HOLDER_VALUE}>Drifting / in irons</option>
+          <option value={NULL_HOLDER_VALUE}>N/A</option>
           {#if candidates.length > 0}
             <optgroup label="Your fleet">
               {#each candidates.filter((c) => c.kind === 'player') as ship (ship.id)}
