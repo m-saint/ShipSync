@@ -379,7 +379,7 @@
       <Field
         label="Captain"
         htmlFor="add-ship-captain-name"
-        helpText="Optional — your character's name (or whoever's on the bridge). Skip it for an unmanned hull and edit later from the captain card."
+        helpText="Optional — your character's name (or whoever else calls the shots)."
       >
         <input
           id="add-ship-captain-name"
