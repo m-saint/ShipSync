@@ -211,7 +211,7 @@
         label="Ship name"
         required
         htmlFor="add-ship-name"
-        helpText="The name displayed on the rail and used as the file stem on save."
+        helpText="The name of your vessel."
         errorText={showNameError ? nameError : ''}
       >
         <input
