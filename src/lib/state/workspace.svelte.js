@@ -317,7 +317,7 @@ export function addShip(overrides = {}) {
   commit(
     {
       kind: 'ship.add',
-      summary: `Chartered ${ship.name}.`,
+      summary: `Added ${ship.name}.`,
       shipId: ship.id,
     },
     () => {
