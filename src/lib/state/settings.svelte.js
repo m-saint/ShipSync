@@ -58,10 +58,10 @@ export const MAX_AUTOSAVE_DEBOUNCE_MS = 15 * 60 * 1000
  * the dialog can render directly from this list.
  */
 export const AUTOSAVE_PRESETS = /** @type {const} */ ([
-  { value: 750, label: 'Live (3/4s)' },
-  { value: 2_000, label: 'Brisk (2s)' },
-  { value: 10_000, label: 'Steady (10s)' },
-  { value: 30_000, label: 'Relaxed (30s)' },
+  { value: 750, label: 'Live' },
+  { value: 2_000, label: '2s' },
+  { value: 10_000, label: '10s' },
+  { value: 30_000, label: '30s' },
 ])
 
 /**
