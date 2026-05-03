@@ -217,7 +217,7 @@
     </div>
   {:else if candidateRows.length === 0}
     <div class="text-sm text-ink-500 py-6 text-center">
-      No other ships in the workspace. Charter or load a second hull first.
+      No other ships in the workspace. Add or load a second ship first.
     </div>
   {:else}
     <div class="flex flex-col gap-4">
