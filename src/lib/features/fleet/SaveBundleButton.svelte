@@ -32,7 +32,7 @@
 
   let title = $derived.by(() => {
     if (disabled) {
-      return `Charter or load at least one ship to save a bundle (${SAVE_BUNDLE_SHORTCUT}).`
+      return `Add or load at least one ship to save a bundle (${SAVE_BUNDLE_SHORTCUT}).`
     }
     const sizeNote =
       shipCount === 1
