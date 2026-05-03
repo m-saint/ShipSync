@@ -150,7 +150,7 @@
           checked={settings.carryOverOnCharter}
           onchange={(event) => setCarryOverOnCharter(event.currentTarget.checked)}
         />
-        Show carry-forward checkbox in the Charter dialog
+        Show carry-forward checkbox when adding a ship
       </label>
     </Field>
   </div>
