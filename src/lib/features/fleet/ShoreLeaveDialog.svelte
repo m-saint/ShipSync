@@ -304,7 +304,7 @@
           type="text"
           bind:value={source}
           maxlength="80"
-          placeholder="e.g. Tortuga, Port Royal, harbormaster"
+          placeholder="e.g. The Hub, Mercani Outpost, etc"
           class="w-full px-3 py-2 rounded-md border border-surface-300 bg-surface-50 text-sm text-ink-900"
         />
       </Field>
