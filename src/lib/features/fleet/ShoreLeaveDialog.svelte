@@ -180,7 +180,7 @@
 >
   {#if workspace.shipOrder.length === 0}
     <div class="text-sm text-ink-500 py-6 text-center">
-      No ships in the workspace. Charter or load a vessel first.
+      No ships in the workspace. Add or load a ship first.
     </div>
   {:else}
     <div class="flex flex-col gap-4">
