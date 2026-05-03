@@ -236,7 +236,7 @@
           Refit deltas (applied per ship)
         </legend>
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <Field label="Hull" helpText="Clamped at each ship's headroom.">
+          <Field label="Hull" helpText="Up to each ship's max HP.">
             <NumberStepper
               ariaLabel="Hull restored"
               bind:value={hull}
@@ -289,7 +289,7 @@
         <span>
           <span class="font-medium">Clear scene conditions</span>
           <span class="block text-xs text-ink-500">
-            Removes scene-only chips (heeling, in irons, crossing the T) from each selected ship. Persistent ship conditions stay put.
+            Removes scene-only conditions from each selected ship.
           </span>
         </span>
       </label>
