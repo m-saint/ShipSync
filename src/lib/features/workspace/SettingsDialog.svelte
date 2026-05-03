@@ -68,7 +68,7 @@
   onClose={handleClose}
 >
   <div class="flex flex-col gap-5">
-    <Field label="Color scheme" helpText="">
+    <Field label="Color scheme" helpText="Global dark theme that's easy on the eyes.">
       <div
         class="inline-flex rounded-md border border-surface-300 bg-surface-50 p-0.5"
         role="radiogroup"
@@ -91,7 +91,7 @@
       </div>
     </Field>
 
-    <Field label="Density" helpText="">
+    <Field label="Density" helpText="Tightens ship and officer cards by 25%">
       <div
         class="inline-flex rounded-md border border-surface-300 bg-surface-50 p-0.5"
         role="radiogroup"
@@ -116,7 +116,7 @@
 
     <Field
       label="Autosave cadence"
-      helpText=""
+      helpText="How long to wait between edits before writing a fresh snapshot."
     >
       <div
         class="inline-flex flex-wrap rounded-md border border-surface-300 bg-surface-50 p-0.5"
@@ -141,7 +141,7 @@
 
     <Field
       label="Carry forward when adding a ship"
-      helpText=""
+      helpText="Offer to copy the selected ship's crew and supplies onto the new ship."
     >
       <label class="inline-flex items-center gap-2 text-sm font-medium text-ink-700">
         <input
