@@ -68,7 +68,7 @@
 
 <div class="flex flex-col gap-1.5 mt-2">
   <div class="flex items-baseline justify-between gap-2 px-0.5">
-    <span class="text-[10px] uppercase tracking-wide text-ink-500">Mounts in {label}</span>
+    <span class="text-[10px] uppercase tracking-wide text-ink-500">Weapons in {label}</span>
     <span
       class={`text-[11px] ${overCapacity ? 'text-amber-700 font-medium' : 'text-ink-500'}`}
       aria-live="polite"
