@@ -91,7 +91,7 @@
       </div>
     </Field>
 
-    <Field label="Density" helpText="Tightens ship and officer cards by 25%">
+    <Field label="Density" helpText="Tighten ship and officer cards by 25%">
       <div
         class="inline-flex rounded-md border border-surface-300 bg-surface-50 p-0.5"
         role="radiogroup"
