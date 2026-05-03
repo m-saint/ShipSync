@@ -43,7 +43,7 @@
     "Scene state — round, phase, wind, weather gage, pursuit, sighted ships — does not persist across save files."
 
   const END_SCENE_HINT =
-    "Reset round, phase, wind, weather gage, pursuit, sighted ships, scene-only conditions, and any boarding pointers on your ships."
+    "Reset all scene-only conditions on your ships."
 
   // Surface a count of what will be cleared so the player can see what they're
   // committing to before they tap Confirm. Uses the live workspace state.
