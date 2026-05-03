@@ -24,7 +24,7 @@
   )
 
   const ADD_HINT =
-    "Sketch in any vessel that's joined the scene. They live for this session only — they're not written to .shipsync.json files."
+    "Temporarily add any vessel that's joined the scene."
 
   function onAdd() {
     const sequence = sceneShips.length + 1
