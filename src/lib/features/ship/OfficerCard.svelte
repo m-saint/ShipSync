@@ -166,7 +166,7 @@
       <Field
         label="Duties & quirks"
         htmlFor={`officer-${station}-notes`}
-        helpText="Free text — anything you want to remember about this officer between sessions."
+        helpText="Anything you want to remember about this officer between sessions."
       >
         <textarea
           id={`officer-${station}-notes`}
