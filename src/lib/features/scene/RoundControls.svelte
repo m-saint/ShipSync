@@ -15,9 +15,9 @@
   import RuleTooltip from '../../ui/RuleTooltip.svelte'
 
   const ROUND_HINT =
-    "Combat rounds are walked through manually — the tracker never auto-advances. Step it forward when the table calls a new round."
+    "Combat rounds are walked through manually — the tracker never auto-advances."
   const PHASE_HINT =
-    "Movement, Attack, then Status. The dropdown is just a marker for everyone at the table; nothing here checks order or gates."
+    "Movement, Attack, then Status."
 </script>
 
 <div class="px-3 py-3 flex items-center justify-between gap-3 border-b border-surface-200 flex-wrap">
